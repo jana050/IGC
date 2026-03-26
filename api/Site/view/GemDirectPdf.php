@@ -109,19 +109,19 @@ td, th {
     <td class="bold">Section</td>
     <td>
         '.(
-            $this->get('hos_org_desc') 
-            ? $this->get('hos_name').' / '.$this->get('hos_org_desc')
-            : $this->get('hos_name')
-        ).'
+        $this->get('hos_org_desc') 
+        ? $this->get('hos_org_desc')
+        : ''
+    ).'
     </td>
 
     <td class="bold">Division</td>
     <td>
         '.(
-            $this->get('hod_org_desc') 
-            ? $this->get('hod_name').' / '.$this->get('hod_org_desc')
-            : $this->get('hod_name')
-        ).'
+        $this->get('hod_org_desc') 
+        ? $this->get('hod_org_desc')
+        : ''
+    ).'
     </td>
 </tr>
 
@@ -193,8 +193,8 @@ td, th {
     <td>Approving Authority (HOS)</td>
     <td>'.(
             $this->get('hos_org_desc') 
-            ? $this->get('hos_name').' / '.$this->get('hos_org_desc')
-            : $this->get('hos_name')
+            ? $this->get('hos_org_desc').' / Signed'
+            : 'Signed'
         ).'</td>
 </tr>
 
@@ -203,8 +203,8 @@ td, th {
     <td colspan="2">Financial Approval (Budget Coordinator)</td>
     <td colspan="2">'.(
             $this->get('financial_approval_org_desc') 
-            ? $this->get('financial_approval_name').' / '.$this->get('financial_approval_org_desc')
-            : $this->get('financial_approval_name')
+            ? $this->get('financial_approval_org_desc').' / Signed'
+            : 'Signed'
         ).'</td>
 </tr>
 

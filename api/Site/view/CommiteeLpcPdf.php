@@ -118,8 +118,8 @@ class CommiteeLpcPdf
 <td>
 '.(
     $this->get('hos_org_desc')
-    ? $this->get('hos_name').' / '.$this->get('hos_org_desc')
-    : $this->get('hos_name')
+    ? $this->get('hos_org_desc')
+    : ''
 ).'
 </td>
 
@@ -127,8 +127,8 @@ class CommiteeLpcPdf
 <td>
 '.(
     $this->get('hod_org_desc')
-    ? $this->get('hod_name').' / '.$this->get('hod_org_desc')
-    : $this->get('hod_name')
+    ? $this->get('hod_org_desc')
+    : ''
 ).'
 </td>
         <tr>
@@ -180,25 +180,25 @@ class CommiteeLpcPdf
             <td class="bold">Approving authority</td>
             <td class="bold center">Section Head</td>
              <td>'.(
-    $this->get('hos_org_desc')
-    ? $this->get('hos_name').' / '.$this->get('hos_org_desc')
-    : $this->get('hos_name')
-).'</td>
+            $this->get('hos_org_desc')
+            ? $this->get('hos_org_desc').' / Signed'
+            : 'Signed'
+        ).'</td>
 
             <td class="bold center" style="border-left:2px solid #000;">Division Head</td>
              <td>'.(
-    $this->get('hod_org_desc')
-    ? $this->get('hod_name').' / '.$this->get('hod_org_desc')
-    : $this->get('hod_name')
-).'</td>
+            $this->get('hod_org_desc')
+            ? $this->get('hod_org_desc').' / Signed'
+            : 'Signed'
+        ).'</td>
         </tr>
         <tr>
             <td class="bold">Financial Approval<br>(Budget coordinator)</td>
             <td>'.(
-    $this->get('lpc_approver_org_desc')
-    ? $this->get('lpc_approver_name').' / '.$this->get('lpc_approver_org_desc')
-    : $this->get('lpc_approver_name')
-).'</td>
+            $this->get('lpc_approver_org_desc')
+            ? $this->get('lpc_approver_org_desc').' / Signed'
+            : 'Signed'
+        ).'</td>
             <td colspan="2" class="bold">Fund available Yes / No</td>
             <td>'.$this->get('fund_available').'</td >
 
@@ -206,10 +206,10 @@ class CommiteeLpcPdf
         <tr>
             <td colspan="3" class="bold">Final Approving authority<br>(Director MC&amp;MFCG)</td>
             <td colspan="2">'.(
-    $this->get('lpc_chairman_org_desc')
-    ? $this->get('lpc_chairman_name').' / '.$this->get('lpc_chairman_org_desc')
-    : $this->get('lpc_chairman_name')
-).'</td>
+            $this->get('lpc_chairman_org_desc')
+            ? $this->get('lpc_chairman_org_desc').' / Signed'
+            : 'Signed'
+        ).'</td>
         </tr>
     </table>
 

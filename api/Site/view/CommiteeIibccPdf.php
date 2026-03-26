@@ -29,9 +29,9 @@ class CommiteeIibccPdf
 
 
 <style> 
-    body { font-family: "Times New Roman", serif; margin: 20px; } 
+    body { font-family: "Times New Roman", serif; margin: 20px; font-size: 13px; } 
     .container { width: 100%; border: 1px solid #000; } 
-    table { width: 100%; border-collapse: collapse; font-size: 10px; } 
+    table { width: 100%; border-collapse: collapse; font-size: 13px; } 
     td, th { border: 1px solid #000; padding: 4px; vertical-align: top; } 
     .signature-box { height: 40px; } 
     .center { text-align: center; } 
@@ -90,18 +90,18 @@ class CommiteeIibccPdf
     <td class="bold">Section</td>
     <td>
         '.(
-            $this->get('hos_org_desc') 
-            ? $this->get('hos_name').' / '.$this->get('hos_org_desc')
-            : $this->get('hos_name')
+            $this->get('hos_org_desc')
+            ? $this->get('hos_org_desc')
+            : ''
         ).'
     </td>
 
     <td class="bold">Division</td>
     <td>
-        '.(
-            $this->get('hod_org_desc') 
-            ? $this->get('hod_name').' / '.$this->get('hod_org_desc')
-            : $this->get('hod_name')
+         '.(
+            $this->get('hod_org_desc')
+            ? $this->get('hod_org_desc')
+            : ''
         ).'
     </td>
 </tr>
@@ -238,17 +238,17 @@ class CommiteeIibccPdf
 <tr>
     <td class="center">'.$this->get('created_by').'</td>
     <td class="center">
-        '.(
+      '.(
             $this->get('hos_org_desc') 
-            ? $this->get('hos_name').' / '.$this->get('hos_org_desc')
-            : $this->get('hos_name')
+            ? $this->get('hos_org_desc').' / Signed'
+            : 'Signed'
         ).'
     </td>
     <td colspan="2" class="center">
-        '.(
+         '.(
             $this->get('hod_org_desc') 
-            ? $this->get('hod_name').' / '.$this->get('hod_org_desc')
-            : $this->get('hod_name')
+            ? $this->get('hod_org_desc').' / Signed'
+            : 'Signed'
         ).'
     </td>
 </tr>
@@ -265,15 +265,15 @@ class CommiteeIibccPdf
     <td colspan="2" class="center">
         '.(
             $this->get('iibcc_approver_org_desc') 
-            ? $this->get('iibcc_approver_name').' / '.$this->get('iibcc_approver_org_desc')
-            : $this->get('iibcc_approver_name')
+            ? $this->get('iibcc_approver_org_desc').' / Signed'
+            : 'Signed'
         ).'
     </td>
     <td colspan="2" class="center">
-        '.(
+         '.(
             $this->get('iibcc_chairman_org_desc') 
-            ? $this->get('iibcc_chairman_name').' / '.$this->get('iibcc_chairman_org_desc')
-            : $this->get('iibcc_chairman_name')
+            ? $this->get('iibcc_chairman_org_desc').' / Signed'
+            : 'Signed'
         ).'
     </td>
 </tr>

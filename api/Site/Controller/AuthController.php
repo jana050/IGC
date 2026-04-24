@@ -110,6 +110,9 @@ class AuthController extends BaseController
         //
         $financial_approval =  $this->_site_helper->getOneValue("financial_approval");
         //
+        $gem_direct_chairman =  $this->_site_helper->getOneValue("gem_direct_chairman");
+        $gem_direct_vetter =  $this->_site_helper->getOneValue("gem_direct_vetter");
+        //
 
 
         foreach ($roles as $role) {
@@ -118,6 +121,12 @@ class AuthController extends BaseController
             //
               if ($role->value == intval($financial_approval)) {
                 $role_names[] = "SD_FINANIAL_APPROVAL";
+            }
+            if ($role->value == intval($gem_direct_chairman)) {
+                $role_names[] = "SD_GEM_DIRECT_CHAIRMAN";
+            }
+            if ($role->value == intval($gem_direct_vetter)) {
+                $role_names[] = "SD_GEM_DIRECT_VETTER";
             }
             //
             if ($role->value == intval($lpc_commiitee_member)) {

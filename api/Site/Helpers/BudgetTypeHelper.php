@@ -24,14 +24,21 @@ use Site\Helpers\TableHelper as Table;
 class BudgetTypeHelper extends BaseHelper
 {
     const schema = [
+        "budget_type" => SmartConst::SCHEMA_VARCHAR,
         "budget_no" => SmartConst::SCHEMA_VARCHAR,
         "amount" => SmartConst::SCHEMA_INTEGER,
     ];
     /**
-     * 
+     *
      */
     const validations = [
 
+        "budget_type" => [
+            [
+                "type" => SmartConst::VALID_REQUIRED,
+                "msg" => "Please Select Budget Type"
+            ]
+        ],
         "budget_no" => [
             [                "type" => SmartConst::VALID_REQUIRED,
                 "msg" => "Please Enter Budget No"
@@ -43,7 +50,7 @@ class BudgetTypeHelper extends BaseHelper
                 "msg" => "Please Enter Amount"
             ]
         ],
-         
+
     ];
     /**
      * 
@@ -65,9 +72,12 @@ class BudgetTypeHelper extends BaseHelper
     public function getAllData($sql = "", $data_in = [], $select_in = [], $group_by = "", $order_by = "", $count = false)
     {
         $from = Table::BUDGET_TYPE;
-        $select = ["*"];
+        $select = ["ID", "budget_type", "budget_no", "amount"];
         if (!empty($select_in)) {
             $select = $select_in;
+        }
+        if (empty($order_by)) {
+            $order_by = "budget_type ASC, budget_no ASC";
         }
         return $this->getAll($select, $from, $sql, $group_by, $order_by, $data_in, false, [], $count);
     }
@@ -99,9 +109,22 @@ class BudgetTypeHelper extends BaseHelper
     public function getAllSelect($sql = "", $data_in = [], $group_by = "", $count = false)
     {
         $from = Table::BUDGET_TYPE;
-        $select = ["ID as value", "budget_no as label"];
-
-        return $this->getAll($select, $from, $sql, $group_by, "", $data_in, false, [], $count);
+        // Label format: "CAPITAL - 540100401020052" when budget_type is set,
+        // otherwise just the budget_no so old rows don't show a dangling "-".
+        // budget_type is also returned as a separate field for any caller
+        // that wants to show/filter on it independently.
+        $select = [
+            "ID as value",
+            "CASE
+                WHEN budget_type IS NOT NULL AND budget_type <> ''
+                THEN CONCAT(budget_type, ' - ', budget_no)
+                ELSE budget_no
+            END as label",
+            "budget_type",
+            "budget_no",
+        ];
+        $order_by = "budget_type ASC, budget_no ASC";
+        return $this->getAll($select, $from, $sql, $group_by, $order_by, $data_in, false, [], $count);
     }
 
     public function isUsedInOtherTables($id)

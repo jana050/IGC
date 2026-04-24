@@ -24,6 +24,8 @@ use Site\Helpers\TemporaryAdvanceHelper;
 use Site\Helpers\RadiologicalWorkHelper;
 use Site\Helpers\WorkPermitHelper;
 use Site\Helpers\RfidCardHelper;
+use Site\Helpers\GemDirectHelper;
+use Site\Helpers\GemDirectPaymentHelper;
 //DashboardController
 
 class DashboardController extends BaseController
@@ -48,6 +50,8 @@ class DashboardController extends BaseController
     private RadiologicalWorkHelper $_radiologicalWork_helper;
     private WorkPermitHelper $_workPermit_helper;
     private RfidCardHelper $_rfidCard_helper;
+    private GemDirectHelper $_gem_direct_helper;
+    private GemDirectPaymentHelper $_gem_direct_payment_helper;
     //
 
 
@@ -74,6 +78,8 @@ class DashboardController extends BaseController
         $this->_radiologicalWork_helper = new RadiologicalWorkHelper($this->db);
         $this->_workPermit_helper = new WorkPermitHelper($this->db);
         $this->_rfidCard_helper = new RfidCardHelper($this->db);
+        $this->_gem_direct_helper = new GemDirectHelper($this->db);
+        $this->_gem_direct_payment_helper = new GemDirectPaymentHelper($this->db);
         //$this->_user_role_helper = new UserRoleHelper($this->db);
     }
 
@@ -164,7 +170,18 @@ class DashboardController extends BaseController
         //
         $db->workPermit_count_hos = $this->_workPermit_helper->getCountStatus("5");
 
- 
+        // GEM Direct pending counts by role (HOS, IIBCC Chairman, Vetter, etc).
+        // Consumed by the approver dashboard cards.
+        $gem_direct_pending = $this->_gem_direct_helper->getPendingCounts(
+            SmartAuthHelper::getLoggedInId()
+        );
+        $db->gem_direct_hos_pending      = $gem_direct_pending->hos_pending ?? 0;
+        $db->gem_direct_chairman_pending = $gem_direct_pending->chairman_pending ?? 0;
+        $db->gem_direct_vetter_pending   = $gem_direct_pending->vetter_pending ?? 0;
+        $db->gem_direct_user_pending     = $gem_direct_pending->user_pending ?? 0;
+        $db->gem_direct_payment_pending  = $gem_direct_pending->payment_pending ?? 0;
+        $db->gem_direct_payment_hos_pending = $this->_gem_direct_payment_helper->getHosPendingCount();
+
         // custom complaint types dashboard
         $db->custom = $this->get_common_complaints_dashboard();
 

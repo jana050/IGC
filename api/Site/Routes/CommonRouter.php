@@ -901,6 +901,7 @@ class CommonRouter
         $this->_routes["/mis_report/mbook_issue_report"] = [SmartConst::REQUEST_POST, $controller, "getMbookIssueReport"];
         //
         $this->_routes["/mis_report/gem_direct_report"] = [SmartConst::REQUEST_POST, $controller, "getGemDirectReport"];
+        $this->_routes["/mis_report/gem_direct_payment_report"] = [SmartConst::REQUEST_POST, $controller, "getGemDirectPaymentReport"];
     }
 
     private function radiological_work_routes()
@@ -1719,13 +1720,14 @@ class CommonRouter
         $controller = "GemDirectController";
         // 5 = submitted 6=app rejected 10=app approved 15= comlaint resolved 14=pending 11=invalid   
         $this->_routes["/gem_direct/insert"] = [SmartConst::REQUEST_POST, $controller, "insert"];
+        $this->_routes["/gem_direct/next_indent_no"] = [SmartConst::REQUEST_GET, $controller, "nextIndentNo"];
         $this->_routes["/gem_direct/update"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "update"];
         $this->_routes["/gem_direct/get_all/admin/wait"] = [
             SmartConst::REQUEST_GET,
             $this->_admin_user,
             $controller,
             "getAll",
-            ["mode" => "admin", "status" => [10, 15, 14]]
+            ["mode" => "admin", "status" => [10, 15, 14, 16, 17, 24, 29, 40]]
 
         ];
         $this->_routes["/gem_direct/get_all/admin/process"] = [
@@ -1733,7 +1735,7 @@ class CommonRouter
             $this->_admin_user,
             $controller,
             "getAll",
-            ["mode" => "admin", "status" => [20, 19]]
+            ["mode" => "admin", "status" => [19, 20, 21, 30, 6]]
 
 
 
@@ -1751,7 +1753,7 @@ class CommonRouter
             $this->_admin_user,
             $controller,
             "getAll",
-            ["mode" => "hos", "status" => [14, 15, 20, 19]]
+            ["mode" => "hos", "status" => [14, 15, 16, 17, 19, 20, 21, 24, 29, 30, 40]]
 
 
         ];
@@ -1783,6 +1785,82 @@ class CommonRouter
         $this->_routes["/gem_direct/get_pdf"] = [SmartConst::REQUEST_POST, $controller, "getPdf"];
         $this->_routes["/gem_direct/update_user"] = [SmartConst::REQUEST_POST, $controller, "updateUser"];
         $this->_routes["/gem_direct/get_doc"] = [SmartConst::REQUEST_POST, $controller, "getDoc"];
+
+        // -------- HOS rework restarts to 10 - widen HOS process set --------
+        // (hos/process route above shows all completed-or-moved items)
+
+        // -------- IIBCC Chairman --------
+        $this->_routes["/gem_direct/get_all/chairman/wait"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "getAll",
+            ["mode" => "chairman", "status" => [15, 17]]
+        ];
+        $this->_routes["/gem_direct/get_all/chairman/process"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "getAll",
+            ["mode" => "chairman", "status" => [16, 19, 20, 29, 21, 30]]
+        ];
+        $this->_routes["/gem_direct/update_chairman"] = [
+            SmartConst::REQUEST_POST, $this->_admin_user, $controller, "updateApprovalChairman"
+        ];
+
+        // -------- Vetter --------
+        $this->_routes["/gem_direct/get_all/vetter/wait"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "getAll",
+            ["mode" => "vetter", "status" => [16]]
+        ];
+        $this->_routes["/gem_direct/get_all/vetter/process"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "getAll",
+            ["mode" => "vetter", "status" => [17, 24, 20, 29]]
+        ];
+        $this->_routes["/gem_direct/update_vetter"] = [
+            SmartConst::REQUEST_POST, $this->_admin_user, $controller, "updateApprovalVetter"
+        ];
+        $this->_routes["/gem_direct/vetter_user_select"] = [
+            SmartConst::REQUEST_POST, $this->_admin_user, $controller, "vetterUserSelect"
+        ];
+
+        // -------- Payment stage (separate sd_gem_direct_payment table) --------
+        $this->_routes["/gem_direct_payment/submit"] = [
+            SmartConst::REQUEST_POST, $this->_admin_user, $controller, "submitPayment"
+        ];
+        $this->_routes["/gem_direct_payment/get_all/user"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "paymentGetAll",
+            ["mode" => "user"]
+        ];
+        $this->_routes["/gem_direct_payment/get_all/admin"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "paymentGetAll",
+            ["mode" => "admin"]
+        ];
+        $this->_routes["/gem_direct_payment/get_one"] = [
+            SmartConst::REQUEST_POST, $this->_admin_user, $controller, "paymentGetOne"
+        ];
+        $this->_routes["/gem_direct_payment/pdf_view"] = [
+            SmartConst::REQUEST_POST, $controller, "paymentPdfView"
+        ];
+        $this->_routes["/gem_direct_payment/pdf_download"] = [
+            SmartConst::REQUEST_POST, $controller, "paymentPdfDownload"
+        ];
+        $this->_routes["/gem_direct_payment/file_download"] = [
+            SmartConst::REQUEST_POST, $this->_admin_user, $controller, "paymentFileDownload"
+        ];
+        $this->_routes["/gem_direct_payment/consignee_select"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "consigneeUserSelect"
+        ];
+        $this->_routes["/gem_direct_payment/buyer_select"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "buyerUserSelect"
+        ];
+        // HOS approval flow on payments
+        $this->_routes["/gem_direct_payment/get_all/hos"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "paymentGetAll",
+            ["mode" => "hos"]
+        ];
+        $this->_routes["/gem_direct_payment/update_hos"] = [
+            SmartConst::REQUEST_POST, $this->_admin_user, $controller, "updateApprovalHosPayment"
+        ];
+
+        // -------- Dashboard pending counts --------
+        $this->_routes["/gem_direct/pending_count"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "pendingCount"
+        ];
 
     }
 

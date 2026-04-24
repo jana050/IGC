@@ -40,6 +40,7 @@ class GemDirectHelper extends BaseHelper
         "dvr_cctv_system" => SmartConst::SCHEMA_VARCHAR,
         "quantity" => SmartConst::SCHEMA_VARCHAR,
         "unit" => SmartConst::SCHEMA_VARCHAR,
+        "total_cost" => SmartConst::SCHEMA_VARCHAR,
         "sd_mt_userdb_id" => SmartConst::SCHEMA_CUSER_ID,
         "hos_id" => SmartConst::SCHEMA_CUSER_ID,
         "hos_remarks" => SmartConst::SCHEMA_TEXT,
@@ -47,6 +48,18 @@ class GemDirectHelper extends BaseHelper
         "financial_approval_id" => SmartConst::SCHEMA_CUSER_ID,
         "financial_approval_remarks" => SmartConst::SCHEMA_TEXT,
         "financial_approval_time" => SmartConst::SCHEMA_CTIME,
+        // IIBCC chairman
+        "iibcc_no" => SmartConst::SCHEMA_VARCHAR,
+        "iibcc_chairman_id" => SmartConst::SCHEMA_CUSER_ID,
+        "iibcc_chairman_remarks" => SmartConst::SCHEMA_TEXT,
+        "iibcc_chairman_time" => SmartConst::SCHEMA_CTIME,
+        // Vetter
+        "vetter_user_id" => SmartConst::SCHEMA_INTEGER,
+        "vetter_assigned_by" => SmartConst::SCHEMA_CUSER_ID,
+        "vetter_assigned_time" => SmartConst::SCHEMA_CTIME,
+        "vetter_remarks" => SmartConst::SCHEMA_TEXT,
+        "vetter_time" => SmartConst::SCHEMA_CTIME,
+
         "status" => SmartConst::SCHEMA_INTEGER,
         "last_modified_by" => SmartConst::SCHEMA_CUSER_ID,
         "last_modified_time" => SmartConst::SCHEMA_CTIME,
@@ -63,12 +76,7 @@ class GemDirectHelper extends BaseHelper
     const validations = [
 
 
-        "indent_no" => [
-            [
-                "type" => SmartConst::VALID_REQUIRED,
-                "msg" => "Please enter indent number"
-            ]
-        ],
+        // indent_no is generated server-side on insert, so no user validation.
 
         "item_brief_description" => [
             [
@@ -98,12 +106,7 @@ class GemDirectHelper extends BaseHelper
             ]
         ],
 
-        "gem_id_item" => [
-            [
-                "type" => SmartConst::VALID_REQUIRED,
-                "msg" => "Please enter GeM ID item"
-            ]
-        ],
+        // gem_id_item is optional — only filled when the item is actually on GeM.
 
         "justification_purchase" => [
             [
@@ -181,14 +184,17 @@ class GemDirectHelper extends BaseHelper
         //  LEFT JOIN " . Table::USERS . " t13 ON t13.ID = t1.financial_approval_id
         //  LEFT JOIN " . Table::BUDGET_TYPE . " t15 ON t15.ID = t1.head_of_account
         // ";
-         $from = Table::GEM_DIRECT . " t1 
-         INNER JOIN " . Table::USERS . " t2 ON t1.sd_mt_userdb_id = t2.ID 
+         $from = Table::GEM_DIRECT . " t1
+         INNER JOIN " . Table::USERS . " t2 ON t1.sd_mt_userdb_id = t2.ID
 
          LEFT JOIN " . Table::USERS . " t11 ON t11.ID = t1.hos_id
          LEFT JOIN " . Table::ORGANISATION . " t21 ON t11.sd_org_id = t21.ID
 
          LEFT JOIN " . Table::USERS . " t13 ON t13.ID = t1.financial_approval_id
          LEFT JOIN " . Table::ORGANISATION . " t23 ON t13.sd_org_id = t23.ID
+
+         LEFT JOIN " . Table::USERS . " t30 ON t30.ID = t1.iibcc_chairman_id
+         LEFT JOIN " . Table::USERS . " t31 ON t31.ID = t1.vetter_user_id
 
          LEFT JOIN " . Table::BUDGET_TYPE . " t15 ON t15.ID = t1.head_of_account
          LEFT JOIN " . Table::ORGANISATION . " t20 ON t2.sd_org_id = t20.ID
@@ -205,20 +211,48 @@ class GemDirectHelper extends BaseHelper
         //     "t2.designation as created_by_designation",
         // ];
           $select = [
+    // all base proposal columns (indent_no, cost, quantity, status, etc.)
     "t1.*",
+    // columns the list table needs explicitly — guarantees they're always returned
+    "t1.ID as ID",
+    "t1.indent_no",
+    "t1.iibcc_no",
+    "t1.gem_id_item",
+    "t1.cost",
+    "t1.quantity",
+    "t1.unit",
+    "t1.total_cost",
+    "t1.estimate_source",
+    "t1.status",
+    "t1.created_time",
+    "t1.iibcc_chairman_id",
+    "t1.iibcc_chairman_remarks",
+    "t1.iibcc_chairman_time",
+    "t1.vetter_user_id",
+    "t1.vetter_remarks",
+    "t1.vetter_time",
+    // joined user / org / budget labels
     "t2.ename as created_by",
     "t11.ename as hos_name",
     "t13.ename as financial_approval_name",
+    "t30.ename as iibcc_chairman_name",
+    "t31.ename as vetter_user_name",
     "t21.sd_org_name as hos_org_desc",
     "t23.sd_org_name as financial_approval_org_desc",
-    "t15.budget_no as head_of_account",
+    "CASE
+        WHEN t15.budget_type IS NOT NULL AND t15.budget_type <> ''
+        THEN CONCAT(t15.budget_type, ' - ', t15.budget_no)
+        ELSE t15.budget_no
+     END as head_of_account",
+    "t15.budget_type as head_of_account_type",
+    "t15.budget_no as head_of_account_no",
     "t2.emailid as created_by_email",
     "t2.mobile_no as created_by_mobile_no",
     "t2.designation as created_by_designation",
     "t20.sd_org_name as sd_org_id_desc",
-     "t2.intercome_number as created_by_intercome"
+     "t2.intercome_number as created_by_intercome",
      ];
-        
+
         $order_by = "t1.created_time DESC";
         // Ensure $sql is not empty to avoid SQL syntax errors
         if (empty($sql)) {
@@ -238,46 +272,47 @@ class GemDirectHelper extends BaseHelper
         //  LEFT JOIN " . Table::USERS . " t13 ON t13.ID = t1.financial_approval_id
         //  LEFT JOIN " . Table::BUDGET_TYPE . " t15 ON t15.ID = t1.head_of_account
         // ";
-         $from = Table::GEM_DIRECT . " t1 
-         INNER JOIN " . Table::USERS . " t2 ON t1.sd_mt_userdb_id = t2.ID 
+         $from = Table::GEM_DIRECT . " t1
+         INNER JOIN " . Table::USERS . " t2 ON t1.sd_mt_userdb_id = t2.ID
 
          LEFT JOIN " . Table::USERS . " t11 ON t11.ID = t1.hos_id
          LEFT JOIN " . Table::ORGANISATION . " t21 ON t11.sd_org_id = t21.ID
 
-
-
          LEFT JOIN " . Table::USERS . " t13 ON t13.ID = t1.financial_approval_id
          LEFT JOIN " . Table::ORGANISATION . " t23 ON t13.sd_org_id = t23.ID
 
+         LEFT JOIN " . Table::USERS . " t30 ON t30.ID = t1.iibcc_chairman_id
+         LEFT JOIN " . Table::USERS . " t31 ON t31.ID = t1.vetter_user_id
 
          LEFT JOIN " . Table::BUDGET_TYPE . " t15 ON t15.ID = t1.head_of_account
          LEFT JOIN " . Table::ORGANISATION . " t20 ON t2.sd_org_id = t20.ID
         ";
 
 
-        // $select = [
-        //     "t1.*,t2.ename as created_by",
-        //     "t11.ename as hos_name",
-        //     "t13.ename as financial_approval_name",
-        //     "t15.budget_no as head_of_account",
-        //     "t2.emailid as created_by_email",
-        //     "t2.mobile_no as created_by_mobile_no",
-        //     "t2.designation as created_by_designation",
-        // ];
-                $select = [
-    "t1.*",
-    "t2.ename as created_by",
-    "t11.ename as hos_name",
-    "t13.ename as financial_approval_name",
-    "t21.sd_org_name as hos_org_desc",
-    "t23.sd_org_name as financial_approval_org_desc",
-    "t15.budget_no as head_of_account",
-    "t2.emailid as created_by_email",
-    "t2.mobile_no as created_by_mobile_no",
-    "t2.designation as created_by_designation",
-    "t20.sd_org_name as sd_org_id_desc",
-     "t2.intercome_number as created_by_intercome"
-     ];
+        $select = [
+            "t1.*",
+            "t1.iibcc_no",
+            "t1.total_cost",
+            "t2.ename as created_by",
+            "t11.ename as hos_name",
+            "t13.ename as financial_approval_name",
+            "t30.ename as iibcc_chairman_name",
+            "t31.ename as vetter_user_name",
+            "t21.sd_org_name as hos_org_desc",
+            "t23.sd_org_name as financial_approval_org_desc",
+            "CASE
+                WHEN t15.budget_type IS NOT NULL AND t15.budget_type <> ''
+                THEN CONCAT(t15.budget_type, ' - ', t15.budget_no)
+                ELSE t15.budget_no
+             END as head_of_account",
+            "t15.budget_type as head_of_account_type",
+            "t15.budget_no as head_of_account_no",
+            "t2.emailid as created_by_email",
+            "t2.mobile_no as created_by_mobile_no",
+            "t2.designation as created_by_designation",
+            "t20.sd_org_name as sd_org_id_desc",
+            "t2.intercome_number as created_by_intercome",
+        ];
 
 
 
@@ -371,15 +406,12 @@ class GemDirectHelper extends BaseHelper
     }
 
 
-    // getone status tarcker purpose
+    // getone status tracker (proposal stage only; payment lives in a separate table)
     public static $STATUS_GROUPED = [
-       
-
-        'User Submission' => [10],
-        'HOS' => [15, 14],  // 15 = approved, 14 = rejected
-        'Financial Approval' => [20, 19], // 20 = approved, 19 = rejected
-
-
+        'User Submission' => [10, 40],                  // 40 = rework-back-to-user
+        'HOS' => [15, 14],                              // 15 approve, 14 reject
+        'IIBCC Chairman' => [16, 17, 29, 19, 20],       // 16 sent-to-vetter, 17 vetter-returned, 29 rework, 19 reject, 20 approved
+        'Vetter' => [16, 17, 24],                       // 16 under vetting, 17 vetter-approved, 24 rework
     ];
 
     public function getStatusTracker($currentStatus, $createdBy = null)
@@ -434,14 +466,15 @@ class GemDirectHelper extends BaseHelper
     //report status tracker purpose
     public static $STATUS_GROUPED_NEW = [
         'Submitted (Waiting for HOS)' => [10],
-
-        'HOS Processing' => [15],
+        'HOS Approved' => [15],
         'HOS Reject' => [14],
-
-        
-        'Financial Approval Processing' => [20],
-        'Financial Approval Reject' => [19],
-
+        'HOS Rework' => [40],
+        'Sent to Vetter' => [16],
+        'Vetter Approved' => [17],
+        'Vetter Rework' => [24],
+        'Chairman Rework' => [29],
+        'Chairman Reject' => [19],
+        'Chairman Approved' => [20],
     ];
     public function getStatusTrackerNew($currentStatus, $createdBy = null)
     {
@@ -550,7 +583,144 @@ class GemDirectHelper extends BaseHelper
     return $this->getAll($select, $from, $sql, "", $order_by, $data_in, false, [], false);
 }
 
+    /**
+     * Get users assigned to the role stored under a given site-settings key
+     * (e.g. 'gem_direct_vetter'). Mirrors the existing user-role lookup
+     * pattern used by UserHelper::getUsersFromRoleIndex.
+     */
+    public function getUsersByRoleKey($role_key)
+    {
+        $role_id = \Core\Helpers\SmartSiteSettings::getSetting($role_key);
+        if (empty($role_id)) return [];
 
+        $from = Table::USERS . " t1
+            INNER JOIN " . Table::USERROLE . " t3 ON t1.ID = t3.sd_mt_userdb_id";
+        $select = ["t1.ID as value", "t1.ename as label"];
+        $sql = "t3.sd_mt_role_id = :ID";
+        $data_in = ["ID" => $role_id];
+        return $this->getAll($select, $from, $sql, "", "t1.ename", $data_in, false, []);
+    }
 
+    /**
+     * Pending counts per role dashboard, for the home screen cards.
+     */
+    public function getPendingCounts($user_id)
+    {
+        $out = new \stdClass();
+        $out->user_pending = $this->countByOwnerAndStatuses($user_id, [10, 40, 29, 24]);
+        $out->hos_pending = $this->countByStatuses([10]);
+        $out->chairman_pending = $this->countByStatuses([15, 17]);
+        $out->vetter_pending = $this->countVetterPending($user_id);
+        // proposals approved (20) that have no payment row yet
+        $out->payment_pending = $this->countPaymentPending($user_id);
+        return $out;
+    }
+
+    private function countPaymentPending($user_id)
+    {
+        if ($user_id < 1) return 0;
+        $select = ["COUNT(*) AS total_count"];
+        $from = Table::GEM_DIRECT . " t1
+            LEFT JOIN " . Table::GEM_DIRECT_PAYMENT . " p1 ON p1.sd_gem_direct_id = t1.ID";
+        $sql = "t1.sd_mt_userdb_id = :uid AND t1.status = 20 AND p1.ID IS NULL";
+        $data = $this->getAll($select, $from, $sql, "", "", ["uid" => $user_id], true);
+        return isset($data->total_count) ? (int) $data->total_count : 0;
+    }
+
+    private function countByStatuses(array $statuses)
+    {
+        if (empty($statuses)) return 0;
+        $select = ["COUNT(*) AS total_count"];
+        $from = Table::GEM_DIRECT;
+        $sql = "status IN (" . implode(",", array_map('intval', $statuses)) . ")";
+        $data = $this->getAll($select, $from, $sql, "", "", [], true);
+        return isset($data->total_count) ? (int) $data->total_count : 0;
+    }
+
+    private function countByOwnerAndStatuses($user_id, array $statuses)
+    {
+        if (empty($statuses) || $user_id < 1) return 0;
+        $select = ["COUNT(*) AS total_count"];
+        $from = Table::GEM_DIRECT;
+        $sql = "sd_mt_userdb_id = :uid AND status IN (" . implode(",", array_map('intval', $statuses)) . ")";
+        $data = $this->getAll($select, $from, $sql, "", "", ["uid" => $user_id], true);
+        return isset($data->total_count) ? (int) $data->total_count : 0;
+    }
+
+    private function countVetterPending($user_id)
+    {
+        if ($user_id < 1) return 0;
+        $select = ["COUNT(*) AS total_count"];
+        $from = Table::GEM_DIRECT;
+        $sql = "vetter_user_id = :uid AND status = 16";
+        $data = $this->getAll($select, $from, $sql, "", "", ["uid" => $user_id], true);
+        return isset($data->total_count) ? (int) $data->total_count : 0;
+    }
+
+    /**
+     * Indent number issued at proposal creation time.
+     * Format: GEM/MC&MFCG/YYYY/MM/NNN   (serial resets every month)
+     *
+     * Next serial is the highest trailing number for the current YYYY/MM
+     * prefix + 1, so we never clash even if rows were deleted.
+     */
+    public function generateGemDirectIndentNumber()
+    {
+        $year  = date("Y");
+        $month = date("m");
+        $prefix = "GEM/MC&MFCG/$year/$month/";
+        $serial = $this->nextSerialForPrefix("indent_no", $prefix);
+        return $prefix . str_pad($serial, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * IIBCC number allotted after chairman's final approval.
+     * Format: GEM/YYYY/MM/NNN   (serial resets every month)
+     *
+     * The CAP/REV prefix that used to encode CAPITAL vs REVENUE was dropped
+     * — the head_of_account column already carries that distinction, and
+     * the prefix made the number unnecessarily long for users.
+     * $headOfAccountId is kept in the signature for caller compatibility.
+     */
+    public function generateGemDirectIibccNumber($headOfAccountId = 0)
+    {
+        $year  = date("Y");
+        $month = date("m");
+        $prefix = "GEM/$year/$month/";
+        $serial = $this->nextSerialForPrefix("iibcc_no", $prefix);
+        return $prefix . str_pad($serial, 3, '0', STR_PAD_LEFT);
+    }
+
+    private function getBudgetTypeForHead($id)
+    {
+        $id = intval($id);
+        if ($id < 1) return '';
+        $row = $this->getAll(
+            ["budget_type"], Table::BUDGET_TYPE . " t1",
+            "t1.ID = :id", "", "", ["id" => $id], true
+        );
+        return isset($row->budget_type) ? $row->budget_type : '';
+    }
+
+    /**
+     * Looks at all {$column} values starting with $prefix and returns the
+     * next serial number (max trailing integer + 1, or 1 when none match).
+     * Prefix length is inlined into the SQL (derived server-side, never
+     * from user input) so we don't bind a numeric SUBSTRING offset.
+     */
+    private function nextSerialForPrefix($column, $prefix)
+    {
+        $offset = strlen($prefix) + 1;
+        $result = $this->getAll(
+            ["MAX(CAST(SUBSTRING(t1.$column, $offset) AS UNSIGNED)) as max_serial"],
+            Table::GEM_DIRECT . " t1",
+            "t1.$column LIKE :pfx",
+            "", "",
+            ["pfx" => $prefix . "%"],
+            true
+        );
+        $max = isset($result->max_serial) ? intval($result->max_serial) : 0;
+        return $max + 1;
+    }
 
 }

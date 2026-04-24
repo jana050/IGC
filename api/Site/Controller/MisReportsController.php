@@ -23,6 +23,7 @@ use Site\Helpers\CommiteeIibccHelper;
 use Site\Helpers\CommiteeLpcHelper;
 use Site\Helpers\CommiteeLpcSubHelper;
 use Site\Helpers\GemDirectHelper;
+use Site\Helpers\GemDirectPaymentHelper;
 
 class MisReportsController extends BaseController
 {
@@ -43,6 +44,7 @@ class MisReportsController extends BaseController
     private CommiteeLpcSubHelper $_commitee_lpc_sub_helper;
     private MbookIssueHelper $_mbookIssue_helper;
     private GemDirectHelper $_gem_direct_helper;
+    private GemDirectPaymentHelper $_gem_direct_payment_helper;
 
 
     function __construct($params)
@@ -65,6 +67,7 @@ class MisReportsController extends BaseController
         $this->_commitee_lpc_sub_helper = new CommiteeLpcSubHelper($this->db);
         $this->_mbookIssue_helper = new MbookIssueHelper($this->db);
         $this->_gem_direct_helper = new GemDirectHelper($this->db);
+        $this->_gem_direct_payment_helper = new GemDirectPaymentHelper($this->db);
     }
 
 
@@ -598,6 +601,45 @@ public function getGemDirectReport()
         }
 
         $item->status_label = $currentLabel;
+    }
+
+    $this->response($report);
+}
+
+// gem direct payment report
+public function getGemDirectPaymentReport()
+{
+    $start_date      = SmartData::post_data("start_date", "DATE");
+    $end_date        = SmartData::post_data("end_date", "DATE");
+    $payment_status  = SmartData::post_data("payment_status", "STRING");
+    $indent_no       = SmartData::post_data("indent_no", "STRING");
+    $firm_name       = SmartData::post_data("firm_name", "STRING");
+    $head_of_account = SmartData::post_data("head_of_account", "STRING");
+
+    $report = $this->_gem_direct_payment_helper->GemDirectPaymentReport(
+        $start_date,
+        $end_date,
+        $payment_status,
+        $indent_no,
+        $firm_name,
+        $head_of_account
+    );
+
+    // Status label mirrors the frontend tag map so the Excel export and
+    // any non-tag display can show a human-readable value.
+    $labels = [
+        10 => "Submitted - Waiting HOS",
+        20 => "Payment Completed",
+        21 => "HOS Rejected",
+        22 => "HOS Rework",
+    ];
+    foreach ($report as &$item) {
+        $ps = $item->payment_status ?? null;
+        if ($ps === null || $ps === "") {
+            $item->payment_status_label = "Pending Payment";
+        } else {
+            $item->payment_status_label = $labels[intval($ps)] ?? (string)$ps;
+        }
     }
 
     $this->response($report);

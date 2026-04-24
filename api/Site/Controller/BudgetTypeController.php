@@ -24,7 +24,7 @@ class BudgetTypeController extends BaseController{
      * 
      */
     public function insert(){
-        $columns = [ "budget_no", "amount"];
+        $columns = [ "budget_type", "budget_no", "amount"];
         // do validations
         $this->_budget_type_helper->validate(BudgetTypeHelper::validations,$columns,$this->post);
          // columns to be inserted
@@ -48,7 +48,7 @@ class BudgetTypeController extends BaseController{
         if($id < 1){
             \CustomErrorHandler::triggerInvalid("Invalid ID");
         }
-        $columns = ["budget_no", "amount"];
+        $columns = ["budget_type", "budget_no", "amount"];
         // do validations
         $this->_budget_type_helper->validate(BudgetTypeHelper::validations,$columns,$this->post);
 

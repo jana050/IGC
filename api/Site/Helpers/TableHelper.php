@@ -89,5 +89,7 @@ class TableHelper
    const COMMITTEE_HISTORY = "sd_commitee_history";
    //
    const GEM_DIRECT = "sd_gem_direct";
+   //
+   const GEM_DIRECT_PAYMENT = "sd_gem_direct_payment";
 
 }

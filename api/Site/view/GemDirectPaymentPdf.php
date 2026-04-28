@@ -106,7 +106,11 @@ class GemDirectPaymentPdf
         $account = $this->get('firm_bank_account');
         $ifsc = $this->get('firm_ifsc');
         $valueWords = $this->numberToWords($this->data['payment_value'] ?? 0);
+        // Only render the user-comments paragraph when the requester
+        // actually filled it in. Per latest requirement we drop the
+        // "User Comments:" label entirely — the text stands on its own.
         $userComments = $this->get('user_comments');
+        $userCommentsBlock = $userComments !== '' ? "<p>{$userComments}</p>" : '';
         $printDate = date("d-m-Y");
 
         $indentor = $this->get('created_by');
@@ -178,7 +182,7 @@ class GemDirectPaymentPdf
         {$ldLine}
     </p>
 
-    <p><span class="bold">User Comments:</span> {$userComments}</p>
+    {$userCommentsBlock}
 
     <p>
         The firm has supplied the items as per GeM order and it is inspected and accepted by us.

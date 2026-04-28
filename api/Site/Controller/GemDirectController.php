@@ -75,6 +75,7 @@ class GemDirectController extends BaseController
         $columns[] = "status";
         $this->post["status"] = 10;
         $columns[] = "detailed_specification";
+        $columns[] = "remarks";         // optional free-text from requester
 
 
         // insert
@@ -381,12 +382,33 @@ class GemDirectController extends BaseController
         // final column list for the update (adds optional + server-set fields)
         $columns = $input_columns;
         $columns[] = "gem_id_item";   // optional user field, no validation rule
+        $columns[] = "remarks";       // optional free-text remarks
         $columns[] = "total_cost";
         $columns[] = "last_modified_by";
         $columns[] = "last_modified_time";
-        $columns[] = "status";
-        // rework restarts back to 10 (per the flowchart)
-        $this->post["status"] = 10;
+
+        // Status handling — three signals decide whether to reset to 10:
+        //  1. Current status must be a "back at user" state (10 = initial,
+        //     40/29/24 = HOS/Chairman/Vetter rework). Anything past that
+        //     point is mid-workflow (15/16/17/19/20) and editing it should
+        //     never silently pull it back to the start.
+        //  2. Caller must be the proposal owner (sd_mt_userdb_id match).
+        //  3. Caller must NOT have ADMIN role (admin edits are in-place
+        //     data fixes; workflow state is theirs to leave alone).
+        // All three must be true to reset; otherwise status stays put.
+        $existing = $this->_gem_direct_helper->getOneData($id);
+        $currentStatus = isset($existing->status) ? intval($existing->status) : 0;
+        $ownerId = isset($existing->sd_mt_userdb_id) ? intval($existing->sd_mt_userdb_id) : 0;
+        $callerId = intval(SmartAuthHelper::getLoggedInId());
+        $userActionableStates = [10, 24, 29, 40];
+        $isOwner = ($ownerId > 0 && $ownerId === $callerId);
+        $isAdmin = SmartAuthHelper::checkRole(["ADMIN"]);
+        $isRework = in_array($currentStatus, $userActionableStates, true);
+
+        if ($isRework && $isOwner && !$isAdmin) {
+            $columns[] = "status";
+            $this->post["status"] = 10;
+        }
         // insert and get id
         $id = $this->_gem_direct_helper->update($columns, $this->post, $id);
         // process the file
@@ -586,7 +608,8 @@ class GemDirectController extends BaseController
             "tax_invoice_no", "tax_invoice_date",
             "payment_value",
             "firm_name", "firm_bank_account", "firm_ifsc",
-            "user_comments",
+            // user_comments is optional — listed in the upsert columns
+            // below so it still gets persisted when the user does fill it.
         ];
         $this->_payment_helper->validate(
             GemDirectPaymentHelper::validations, $validated_columns, $this->post
@@ -601,6 +624,7 @@ class GemDirectController extends BaseController
             "payable_value",          // server-recomputed
             "firm_address", "firm_contact", "firm_email",
             "consignee_id", "buyer_id",
+            "user_comments",          // optional — persisted when present
         ]);
 
         // SmartDate sends dates as {year, month, day} arrays rather than
@@ -635,13 +659,27 @@ class GemDirectController extends BaseController
 
         // upsert: one payment row per proposal. Re-submissions after an
         // HOS rework (status 22) must go back to status 10 so the row
-        // re-enters the HOS queue.
+        // re-enters the HOS queue. Three conditions ALL required:
+        //   1. Payment status must be 10 (just submitted) or 22 (rework).
+        //      If it's 20 (completed) or 21 (rejected) we never bounce it.
+        //   2. Caller must be the original payment submitter.
+        //   3. Caller must NOT have ADMIN role (admin = in-place fix).
         $existing = $this->_payment_helper->getOneByGemDirectId($gem_direct_id);
+        $paymentStatus = isset($existing->status) ? intval($existing->status) : 0;
+        $ownerId = isset($existing->sd_mt_userdb_id) ? intval($existing->sd_mt_userdb_id) : 0;
+        $callerId = intval(SmartAuthHelper::getLoggedInId());
+        $userActionablePaymentStates = [10, 22];
+        $isOwner = ($ownerId > 0 && $ownerId === $callerId);
+        $isAdmin = SmartAuthHelper::checkRole(["ADMIN"]);
+        $isRework = in_array($paymentStatus, $userActionablePaymentStates, true);
+
         if ($existing) {
             $columns[] = "last_modified_by";
             $columns[] = "last_modified_time";
-            $columns[] = "status";
-            $this->post["status"] = 10;
+            if ($isRework && $isOwner && !$isAdmin) {
+                $columns[] = "status";
+                $this->post["status"] = 10;
+            }
             $payment_id = intval($existing->ID);
             $this->_payment_helper->update($columns, $this->post, $payment_id);
         } else {
@@ -713,7 +751,9 @@ class GemDirectController extends BaseController
         $action  = isset($this->post["status"])  ? $this->post["status"]  : "";
         $remarks = isset($this->post["remarks"]) ? $this->post["remarks"] : "";
 
-        $status_map = ["approve" => 20, "reject" => 21, "rework" => 22];
+        // Reject removed from HOS payment workflow — only Approve / Rework
+        // are valid outcomes once payment details have been submitted.
+        $status_map = ["approve" => 20, "rework" => 22];
         if (!isset($status_map[$action])) {
             \CustomErrorHandler::triggerInvalid("Invalid Action");
             return;
@@ -728,7 +768,6 @@ class GemDirectController extends BaseController
 
         $log_map = [
             20 => "HOS APPROVED GEM DIRECT PAYMENT",
-            21 => "HOS REJECTED GEM DIRECT PAYMENT",
             22 => "HOS SENT GEM DIRECT PAYMENT FOR REWORK",
         ];
         $this->addLog($log_map[$status_map[$action]], $remarks, SmartAuthHelper::getLoggedInUserName());

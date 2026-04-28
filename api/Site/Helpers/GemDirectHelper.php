@@ -65,7 +65,10 @@ class GemDirectHelper extends BaseHelper
         "last_modified_time" => SmartConst::SCHEMA_CTIME,
         "created_time" => SmartConst::SCHEMA_CDATETIME,
         "doc_loc" => SmartConst::SCHEMA_TEXT,
-        "detailed_specification" => SmartConst::SCHEMA_VARCHAR
+        "detailed_specification" => SmartConst::SCHEMA_VARCHAR,
+        // Optional free-text remarks from the requester. Shown on the
+        // View / Edit dialogs alongside justification.
+        "remarks" => SmartConst::SCHEMA_TEXT,
 
 
     ];
@@ -251,6 +254,7 @@ class GemDirectHelper extends BaseHelper
     "t2.designation as created_by_designation",
     "t20.sd_org_name as sd_org_id_desc",
      "t2.intercome_number as created_by_intercome",
+     "t2.euserid as created_by_icno",
      ];
 
         $order_by = "t1.created_time DESC";
@@ -312,6 +316,7 @@ class GemDirectHelper extends BaseHelper
             "t2.designation as created_by_designation",
             "t20.sd_org_name as sd_org_id_desc",
             "t2.intercome_number as created_by_intercome",
+     "t2.euserid as created_by_icno",
         ];
 
 
@@ -407,12 +412,23 @@ class GemDirectHelper extends BaseHelper
 
 
     // getone status tracker (proposal stage only; payment lives in a separate table)
+    //
+    // Each role's `codes` is the set of statuses where the proposal is
+    // "at" that role. Rework codes (40, 24, 29) belong to the role that
+    // ISSUED the rework — that way the tracker can highlight which step
+    // bounced the proposal back, while the proposal itself is back at the
+    // user (handled separately in the loop below).
     public static $STATUS_GROUPED = [
-        'User Submission' => [10, 40],                  // 40 = rework-back-to-user
-        'HOS' => [15, 14],                              // 15 approve, 14 reject
-        'IIBCC Chairman' => [16, 17, 29, 19, 20],       // 16 sent-to-vetter, 17 vetter-returned, 29 rework, 19 reject, 20 approved
+        'User Submission' => [10],                      // 10 = submitted
+        'HOS' => [15, 14, 40],                          // 15 approve, 14 reject, 40 rework
+        'IIBCC Chairman' => [16, 17, 19, 20, 29],       // 16 sent-to-vetter, 17 vetter-returned, 29 rework, 19 reject, 20 approved
         'Vetter' => [16, 17, 24],                       // 16 under vetting, 17 vetter-approved, 24 rework
     ];
+
+    // Codes where the role bounced the proposal — split into "rework"
+    // (proposal back at user, can be re-submitted) and "reject" (terminal).
+    public static $REWORK_CODES = [40, 24, 29];
+    public static $REJECT_CODES = [14, 19];
 
     public function getStatusTracker($currentStatus, $createdBy = null)
     {
@@ -420,29 +436,57 @@ class GemDirectHelper extends BaseHelper
         $foundCurrent = false;
         $rejectFound = false;
 
-        foreach (self::$STATUS_GROUPED as $label => $codes) {
-            $isCurrent = in_array($currentStatus, $codes);
+        $isReworkOverall = in_array($currentStatus, self::$REWORK_CODES);
+        $isRejectOverall = in_array($currentStatus, self::$REJECT_CODES);
 
-            // Check if rework
-            //    $isRework = ($currentStatus == 40);
-            $isReject = in_array($currentStatus, array_filter($codes, fn($c) => $c % 5 === 4)); // all rework codes end with 4 or 9
+        foreach (self::$STATUS_GROUPED as $label => $codes) {
+            $isAtRole = in_array($currentStatus, $codes);
+
+            // Mark this role as the rejecter when the current code is a
+            // reject/rework that originates from this role. (Prevents
+            // Vetter / Chairman both lighting up on shared codes 16/17.)
+            $isReject = false;
+            if (in_array($currentStatus, self::$REJECT_CODES) && in_array($currentStatus, $codes)) {
+                $isReject = true;
+            } else if ($currentStatus === 40 && $label === 'HOS') {
+                $isReject = true;
+            } else if ($currentStatus === 29 && $label === 'IIBCC Chairman') {
+                $isReject = true;
+            } else if ($currentStatus === 24 && $label === 'Vetter') {
+                $isReject = true;
+            }
+
+            // Tracker "current" indicator:
+            //  - On a rework status the proposal is back at User Submission,
+            //    so User is current AND the bouncing role is current
+            //    (highlighted as reject).
+            //  - On a reject status only the rejecting role is current.
+            //  - Otherwise the role(s) holding the code are current.
+            if ($isReworkOverall) {
+                $isCurrent = ($label === 'User Submission') || $isReject;
+            } else if ($isRejectOverall) {
+                $isCurrent = $isReject;
+            } else {
+                $isCurrent = $isAtRole;
+            }
 
             if ($isReject) {
                 $rejectFound = true;
             }
 
-            // Mark completed logic
+            // Completion: roles before the current/reject point are done,
+            // anything after is pending.
             if ($isReject) {
                 $isCompleted = false;
             } elseif ($rejectFound) {
-                $isCompleted = false; // all future steps after reject = false
+                $isCompleted = false;
             } elseif ($isCurrent) {
                 $isCompleted = true;
                 $foundCurrent = true;
             } elseif (!$foundCurrent) {
-                $isCompleted = true; // previous steps completed
+                $isCompleted = true;
             } else {
-                $isCompleted = false; // future steps pending
+                $isCompleted = false;
             }
 
             // Custom label for User Submission
@@ -453,7 +497,10 @@ class GemDirectHelper extends BaseHelper
                 'label' => $displayLabel,
                 'is_current' => $isCurrent,
                 'is_completed' => $isCompleted,
-                'is_reject' => $isReject
+                // Both spellings supplied — different frontends bind to
+                // different names. Keep them in sync.
+                'is_reject' => $isReject,
+                'is_rejected' => $isReject,
             ];
         }
 
@@ -675,18 +722,20 @@ class GemDirectHelper extends BaseHelper
 
     /**
      * IIBCC number allotted after chairman's final approval.
-     * Format: GEM/YYYY/MM/NNN   (serial resets every month)
+     * Format: {CAP|REV}/GEM/YYYY/MM/NNN   (serial resets every month per
+     * head-of-account TYPE — CAP and REV maintain independent counters).
      *
-     * The CAP/REV prefix that used to encode CAPITAL vs REVENUE was dropped
-     * — the head_of_account column already carries that distinction, and
-     * the prefix made the number unnecessarily long for users.
-     * $headOfAccountId is kept in the signature for caller compatibility.
+     * $headOfAccountId is the FK to sd_budget_type; its budget_type column
+     * decides CAPITAL (CAP) vs REVENUE (REV). Defaults to CAP when unknown.
      */
     public function generateGemDirectIibccNumber($headOfAccountId = 0)
     {
+        $bt = strtoupper(trim($this->getBudgetTypeForHead($headOfAccountId)));
+        $code = ($bt === 'REVENUE' || $bt === 'REV') ? 'REV' : 'CAP';
+
         $year  = date("Y");
         $month = date("m");
-        $prefix = "GEM/$year/$month/";
+        $prefix = "$code/GEM/$year/$month/";
         $serial = $this->nextSerialForPrefix("iibcc_no", $prefix);
         return $prefix . str_pad($serial, 3, '0', STR_PAD_LEFT);
     }

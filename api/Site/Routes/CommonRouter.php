@@ -1722,6 +1722,16 @@ class CommonRouter
         $this->_routes["/gem_direct/insert"] = [SmartConst::REQUEST_POST, $controller, "insert"];
         $this->_routes["/gem_direct/next_indent_no"] = [SmartConst::REQUEST_GET, $controller, "nextIndentNo"];
         $this->_routes["/gem_direct/update"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "update"];
+        // Plain admin listing — every status, used by the Proposals - Admin
+        // page (no wait/process toggle there). Status set covers the full
+        // lifecycle (10..40, 6).
+        $this->_routes["/gem_direct/get_all/admin"] = [
+            SmartConst::REQUEST_GET,
+            $this->_admin_user,
+            $controller,
+            "getAll",
+            ["mode" => "admin", "status" => [6, 10, 14, 15, 16, 17, 19, 20, 21, 24, 29, 30, 40]]
+        ];
         $this->_routes["/gem_direct/get_all/admin/wait"] = [
             SmartConst::REQUEST_GET,
             $this->_admin_user,

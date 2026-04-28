@@ -72,9 +72,10 @@ class GemDirectPaymentHelper extends BaseHelper
         "tax_invoice_date"  => [[ "type" => SmartConst::VALID_REQUIRED, "msg" => "Tax Invoice Date required" ]],
         "payment_value"     => [[ "type" => SmartConst::VALID_REQUIRED, "msg" => "Value required" ]],
         "firm_name"         => [[ "type" => SmartConst::VALID_REQUIRED, "msg" => "Firm Name required" ]],
-        "firm_bank_account" => [[ "type" => SmartConst::VALID_REQUIRED, "msg" => "Bank Account required" ]],
+        "firm_bank_account" => [[ "type" => SmartConst::VALID_REQUIRED, "msg" => "Bank Account Number required" ]],
         "firm_ifsc"         => [[ "type" => SmartConst::VALID_REQUIRED, "msg" => "IFSC required" ]],
-        "user_comments"     => [[ "type" => SmartConst::VALID_REQUIRED, "msg" => "User Comments required" ]],
+        // user_comments is intentionally optional — it's the only free-text
+        // field the requester may leave blank.
         // approving_authority is no longer collected — single-stage HOS approval.
     ];
 

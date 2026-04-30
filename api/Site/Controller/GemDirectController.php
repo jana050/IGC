@@ -494,10 +494,15 @@ class GemDirectController extends BaseController
         } else if ($action === "approve") {
             // Direct approval by the chairman — finalize to status 20 and
             // allot the IIBCC number straight away (no vetter step).
+            // getOneData() aliases head_of_account to a "TYPE - budget_no"
+            // label, so the raw FK is gone — we pass the already-loaded
+            // head_of_account_type value directly to skip the redundant
+            // (and broken) ID-based lookup.
             $dt["status"] = 20;
             $columns[] = "iibcc_no";
             $dt["iibcc_no"] = $this->_gem_direct_helper->generateGemDirectIibccNumber(
-                intval($row->head_of_account ?? 0)
+                0,
+                isset($row->head_of_account_type) ? $row->head_of_account_type : ''
             );
         } else {
             \CustomErrorHandler::triggerInvalid("Invalid Action");

@@ -725,12 +725,16 @@ class GemDirectHelper extends BaseHelper
      * Format: {CAP|REV}/GEM/YYYY/MM/NNN   (serial resets every month per
      * head-of-account TYPE — CAP and REV maintain independent counters).
      *
-     * $headOfAccountId is the FK to sd_budget_type; its budget_type column
-     * decides CAPITAL (CAP) vs REVENUE (REV). Defaults to CAP when unknown.
+     * $headOfAccountId is the FK to sd_budget_type. Pass `0` and provide
+     * $budgetType directly when the caller already knows it (e.g. when the
+     * proposal row was loaded with the type aliased separately — common
+     * because getOneData() rewrites the head_of_account column to a label
+     * string and loses the raw FK in the process).
      */
-    public function generateGemDirectIibccNumber($headOfAccountId = 0)
+    public function generateGemDirectIibccNumber($headOfAccountId = 0, $budgetType = '')
     {
-        $bt = strtoupper(trim($this->getBudgetTypeForHead($headOfAccountId)));
+        $bt = $budgetType !== '' ? $budgetType : $this->getBudgetTypeForHead($headOfAccountId);
+        $bt = strtoupper(trim((string)$bt));
         $code = ($bt === 'REVENUE' || $bt === 'REV') ? 'REV' : 'CAP';
 
         $year  = date("Y");

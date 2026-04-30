@@ -40,16 +40,16 @@ class GemDirectPdf
         $icno = $this->get('created_by_icno');
         $indenterName = $icno ? $created_by . ' / ' . $icno : $created_by;
 
+        // Signature cells just show the approver's name when the stage is
+        // completed (the name is the signature). Falls back to the org
+        // descriptor for HOS when no name is joined; chairman / vetter
+        // stay blank until they actually act.
         $sigHos = $this->get('hos_name');
-        if ($sigHos) { $sigHos .= ' / Signed'; }
-        else { $sigHos = $this->get('hos_org_desc') ? $this->get('hos_org_desc') . ' / Signed' : ''; }
+        if (!$sigHos) { $sigHos = $this->get('hos_org_desc'); }
 
         $sigChairman = $this->get('iibcc_chairman_name');
-        if ($sigChairman) { $sigChairman .= ' / Signed'; }
-        else if ($this->get('iibcc_no')) { $sigChairman = 'Signed'; }
 
         $sigVetter = $this->get('vetter_user_name');
-        if ($sigVetter) { $sigVetter .= ' / Signed'; }
 
         // mPDF happily accepts a bare HTML fragment with a leading <style>.
         // We deliberately omit <!DOCTYPE>, <html>, <head>, <body> and

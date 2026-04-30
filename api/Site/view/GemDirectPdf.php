@@ -24,8 +24,13 @@ class GemDirectPdf
         if (is_array($v) || is_object($v)) {
             return $default;
         }
-        $s = (string)$v;
-        if ($s === '') return $default;
+        $s = trim((string)$v);
+        // Treat empty string AND the literal text "null"/"undefined" as
+        // missing — historical rows have these strings stored when the
+        // frontend submitted a null value via String(null).
+        if ($s === '' || strcasecmp($s, 'null') === 0 || strcasecmp($s, 'undefined') === 0) {
+            return $default;
+        }
         return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
@@ -64,7 +69,7 @@ body { font-family: "Times New Roman", serif; font-size: 13px; color: #000; }
 .form-table .sec { font-weight: bold; text-align: center; background: #e6e6e6; font-size: 14px; padding: 7px; }
 .form-table .c   { text-align: center; }
 .form-table .tall td { height: 60px; }
-.form-table .sig td { height: 50px; text-align: center; vertical-align: middle; font-weight: bold; }
+.form-table .sig td { height: 55px; text-align: center; vertical-align: middle; font-weight: bold; }
 .form-table .head-row td { vertical-align: middle; }
 .form-table .head-row .org    { text-align: center; font-weight: bold; font-size: 13px; line-height: 1.4; }
 .form-table .head-row .badge  { text-align: center; font-weight: bold; font-size: 14px; }
@@ -148,19 +153,19 @@ body { font-family: "Times New Roman", serif; font-size: 13px; color: #000; }
 <tr><td colspan="4" class="sec">Justification for the Purchase, Quantity and End Use</td></tr>
 
 <tr class="tall">
-    <td colspan="4">'.$this->get('justification_purchase', '-').'</td>
+    <td colspan="4">'.$this->get('justification_purchase', '').'</td>
 </tr>
 
 <tr>
-    <td class="sec">Detailed Specifications</td>
-    <td class="sec c">Quantity</td>
-    <td colspan="2" class="sec c">Unit</td>
+    <td colspan="2" class="sec" style="width:70%">Detailed Specifications</td>
+    <td class="sec c" style="width:15%">Quantity</td>
+    <td class="sec c" style="width:15%">Unit</td>
 </tr>
 
 <tr class="tall">
-    <td>'.$this->get('detailed_specification', '-').'</td>
+    <td colspan="2">'.$this->get('detailed_specification', '').'</td>
     <td class="c">'.$this->get('quantity', '-').'</td>
-    <td colspan="2" class="c">'.$this->get('unit', '-').'</td>
+    <td class="c">'.$this->get('unit', '-').'</td>
 </tr>
 
 <tr><td colspan="4" class="sec">Signatures</td></tr>
@@ -174,9 +179,9 @@ body { font-family: "Times New Roman", serif; font-size: 13px; color: #000; }
 
 <tr class="sig">
     <td>IIBCC Chairman</td>
-    <td>'.($sigChairman ?: '').'</td>
-    <td>Vetted By<br/><span style="font-weight:normal;font-size:11px;">(Financial Approval / Budget Coordinator)</span></td>
-    <td>'.($sigVetter ?: '').'</td>
+    <td>'.($sigChairman ? $sigChairman . '<br/><span style="font-weight:normal;font-size:11px;">Approved Online</span>' : '').'</td>
+    <td>Budget Coordinator</td>
+    <td></td>
 </tr>
 
 <tr class="sig">

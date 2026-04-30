@@ -722,26 +722,56 @@ class GemDirectHelper extends BaseHelper
 
     /**
      * IIBCC number allotted after chairman's final approval.
-     * Format: {CAP|REV}/GEM/YYYY/MM/NNN   (serial resets every month per
-     * head-of-account TYPE — CAP and REV maintain independent counters).
+     * Format: {CAP|REV}/GEM/YYYY/MM/NNN
+     *
+     * Each head-of-account TYPE keeps its OWN monthly counter — a
+     * CAPITAL approval will never bump the REV serial and vice-versa.
+     * The serial is computed by counting rows that satisfy BOTH:
+     *   1. iibcc_no LIKE '<prefix>%'
+     *   2. the proposal's actual head_of_account.budget_type == this type
+     * That dual check protects against legacy / mismatched-prefix rows
+     * (e.g. data created when the prefix lookup was buggy and CAPITAL
+     * proposals got a CAP prefix that no longer matches their HOA).
      *
      * $headOfAccountId is the FK to sd_budget_type. Pass `0` and provide
-     * $budgetType directly when the caller already knows it (e.g. when the
-     * proposal row was loaded with the type aliased separately — common
-     * because getOneData() rewrites the head_of_account column to a label
-     * string and loses the raw FK in the process).
+     * $budgetType directly when the caller already knows it (common
+     * because getOneData() rewrites the head_of_account column to a
+     * label string and loses the raw FK in the process).
      */
     public function generateGemDirectIibccNumber($headOfAccountId = 0, $budgetType = '')
     {
         $bt = $budgetType !== '' ? $budgetType : $this->getBudgetTypeForHead($headOfAccountId);
         $bt = strtoupper(trim((string)$bt));
         $code = ($bt === 'REVENUE' || $bt === 'REV') ? 'REV' : 'CAP';
+        $typeMatch = ($code === 'REV') ? 'REVENUE' : 'CAPITAL';
 
         $year  = date("Y");
         $month = date("m");
         $prefix = "$code/GEM/$year/$month/";
-        $serial = $this->nextSerialForPrefix("iibcc_no", $prefix);
+        $serial = $this->nextSerialForPrefixAndType("iibcc_no", $prefix, $typeMatch);
         return $prefix . str_pad($serial, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Variant of nextSerialForPrefix() that also requires the proposal's
+     * head-of-account budget_type to match $typeMatch. Used by IIBCC
+     * number allotment so that even if a legacy row has a CAP prefix on
+     * a REVENUE-type HOA, it doesn't inflate the CAP counter.
+     */
+    private function nextSerialForPrefixAndType($column, $prefix, $typeMatch)
+    {
+        $offset = strlen($prefix) + 1;
+        $result = $this->getAll(
+            ["MAX(CAST(SUBSTRING(t1.$column, $offset) AS UNSIGNED)) as max_serial"],
+            Table::GEM_DIRECT . " t1
+                LEFT JOIN " . Table::BUDGET_TYPE . " t15 ON t15.ID = t1.head_of_account",
+            "t1.$column LIKE :pfx AND UPPER(TRIM(t15.budget_type)) = :bt",
+            "", "",
+            ["pfx" => $prefix . "%", "bt" => strtoupper($typeMatch)],
+            true
+        );
+        $max = isset($result->max_serial) ? intval($result->max_serial) : 0;
+        return $max + 1;
     }
 
     private function getBudgetTypeForHead($id)

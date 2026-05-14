@@ -52,8 +52,8 @@ class UserSiteHelper extends BaseHelper
             ],
             [
                 "type" => SmartConst::VALID_FILE_TYPE,
-                "msg" => "Only pdf is allowed",
-                "ext"=>["pdf"]
+                "msg" => "Only pdf, doc, docx are allowed",
+                "ext"=>["pdf","doc","docx"]
             ]
         
         ]

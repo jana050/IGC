@@ -26,6 +26,7 @@ use Site\Helpers\WorkPermitHelper;
 use Site\Helpers\RfidCardHelper;
 use Site\Helpers\GemDirectHelper;
 use Site\Helpers\GemDirectPaymentHelper;
+use Site\Helpers\OrganisationHelper;
 //DashboardController
 
 class DashboardController extends BaseController
@@ -52,6 +53,7 @@ class DashboardController extends BaseController
     private RfidCardHelper $_rfidCard_helper;
     private GemDirectHelper $_gem_direct_helper;
     private GemDirectPaymentHelper $_gem_direct_payment_helper;
+    private OrganisationHelper $_org_helper;
     //
 
 
@@ -80,6 +82,7 @@ class DashboardController extends BaseController
         $this->_rfidCard_helper = new RfidCardHelper($this->db);
         $this->_gem_direct_helper = new GemDirectHelper($this->db);
         $this->_gem_direct_payment_helper = new GemDirectPaymentHelper($this->db);
+        $this->_org_helper = new OrganisationHelper($this->db);
         //$this->_user_role_helper = new UserRoleHelper($this->db);
     }
 
@@ -171,16 +174,17 @@ class DashboardController extends BaseController
         $db->workPermit_count_hos = $this->_workPermit_helper->getCountStatus("5");
 
         // GEM Direct pending counts by role (HOS, IIBCC Chairman, Vetter, etc).
-        // Consumed by the approver dashboard cards.
-        $gem_direct_pending = $this->_gem_direct_helper->getPendingCounts(
-            SmartAuthHelper::getLoggedInId()
-        );
+        // Consumed by the approver dashboard cards. HOS-scoped counts use
+        // the user's SH sub-org tree so each HOS only sees their section.
+        $logged_id = SmartAuthHelper::getLoggedInId();
+        $hos_org_ids = $this->_org_helper->getSubOrdIds($logged_id, "SH");
+        $gem_direct_pending = $this->_gem_direct_helper->getPendingCounts($logged_id, $hos_org_ids);
         $db->gem_direct_hos_pending      = $gem_direct_pending->hos_pending ?? 0;
         $db->gem_direct_chairman_pending = $gem_direct_pending->chairman_pending ?? 0;
         $db->gem_direct_vetter_pending   = $gem_direct_pending->vetter_pending ?? 0;
         $db->gem_direct_user_pending     = $gem_direct_pending->user_pending ?? 0;
         $db->gem_direct_payment_pending  = $gem_direct_pending->payment_pending ?? 0;
-        $db->gem_direct_payment_hos_pending = $this->_gem_direct_payment_helper->getHosPendingCount();
+        $db->gem_direct_payment_hos_pending = $this->_gem_direct_payment_helper->getHosPendingCount($logged_id, $hos_org_ids);
 
         // custom complaint types dashboard
         $db->custom = $this->get_common_complaints_dashboard();

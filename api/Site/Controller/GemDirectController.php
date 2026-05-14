@@ -173,12 +173,20 @@ class GemDirectController extends BaseController
                 $sql = "status IN (" . implode(",", $status) . ")";
                 break;
             case 'hos':
-                $sql = "t1.status IN (" . implode(",", $status) . ")";
+                // Restrict the list to proposals raised by users who belong
+                // to the orgs (and sub-orgs) where the logged-in user is a
+                // Section Head, OR proposals the HOS submitted themselves
+                // (their own org is the parent org, not a sub-org, so the
+                // ownership clause is what makes self-raised proposals show
+                // up in the HOS's own approval queue).
+                // Empty org list → -1 so IN () stays valid and yields no
+                // rows when the user isn't an SH anywhere.
+                $org_ids = $this->_org_helper->getSubOrdIds($logged_id, "SH");
+                $org_ids_sql = empty($org_ids) ? "-1" : implode(",", array_map('intval', $org_ids));
+                $sql = "t1.status IN (" . implode(",", $status) . ")
+                    AND (t2.sd_org_id IN (" . $org_ids_sql . ") OR t1.sd_mt_userdb_id = :hos_self_id)";
+                $data_in = ["hos_self_id" => $logged_id];
                 break;
-            // case 'hos':
-            //     $org_ids = $this->_org_helper->getSubOrdIds($logged_id, "SH");
-            //     $sql = "t1.status IN (" . implode(",", $status) . ") AND t2.sd_org_id IN (" . implode(",", $org_ids) . ")";
-            //     break;
 
             case 'financial_approval':
                 $sql = "t1.status IN (" . implode(",", $status) . ")";
@@ -726,7 +734,12 @@ class GemDirectController extends BaseController
     {
         $mode = isset($this->params["mode"]) ? $this->params["mode"] : "admin";
         $user_id = SmartAuthHelper::getLoggedInId();
-        $data = $this->_payment_helper->getAllData($mode, $user_id);
+        // For the HOS payment queue, scope to proposals raised by users in
+        // the orgs (and sub-orgs) where this user is a Section Head, plus
+        // payment rows the HOS submitted themselves. Mirrors the proposal
+        // HOS filter so each HOS only sees their own section's payments.
+        $hos_org_ids = ($mode === "hos") ? $this->_org_helper->getSubOrdIds($user_id, "SH") : [];
+        $data = $this->_payment_helper->getAllData($mode, $user_id, $hos_org_ids);
         $this->response($data);
     }
 
@@ -888,7 +901,12 @@ class GemDirectController extends BaseController
     public function pendingCount()
     {
         $user_id = SmartAuthHelper::getLoggedInId();
-        $counts = $this->_gem_direct_helper->getPendingCounts($user_id);
+        // HOS dashboard count is scoped to the orgs where this user is a
+        // Section Head (plus their own self-raised proposals); mirrors the
+        // filter applied in getAll() case 'hos' so the badge matches the
+        // list the user will actually see.
+        $hos_org_ids = $this->_org_helper->getSubOrdIds($user_id, "SH");
+        $counts = $this->_gem_direct_helper->getPendingCounts($user_id, $hos_org_ids);
         $this->response($counts);
     }
 

@@ -156,7 +156,7 @@ class GemDirectPaymentHelper extends BaseHelper
      *   21          HOS Rejected
      *   22          HOS Rework (user can re-edit and re-submit)
      */
-    public function getAllData($mode = "admin", $user_id = 0)
+    public function getAllData($mode = "admin", $user_id = 0, array $hos_org_ids = [])
     {
         $from = Table::GEM_DIRECT . " g1
             INNER JOIN " . Table::USERS . " u1 ON u1.ID = g1.sd_mt_userdb_id
@@ -205,8 +205,14 @@ class GemDirectPaymentHelper extends BaseHelper
             $sql .= " AND g1.sd_mt_userdb_id = :uid";
             $data_in["uid"] = $user_id;
         } else if ($mode === "hos") {
-            // HOS only sees payment rows at status 10 (waiting for their action)
-            $sql .= " AND t1.status = 10";
+            // HOS only sees payment rows at status 10 (waiting for their action),
+            // scoped to proposals from users in their sub-org tree, plus any
+            // they raised themselves. Empty org list → -1 so IN () stays
+            // valid and yields no rows for non-HOS users.
+            $org_ids_sql = empty($hos_org_ids) ? "-1" : implode(",", array_map('intval', $hos_org_ids));
+            $sql .= " AND t1.status = 10
+                AND (u1.sd_org_id IN (" . $org_ids_sql . ") OR g1.sd_mt_userdb_id = :hos_self_id)";
+            $data_in["hos_self_id"] = $user_id;
         }
         return $this->getAll(
             $select,
@@ -333,13 +339,23 @@ class GemDirectPaymentHelper extends BaseHelper
 
     /**
      * Pending counts for the HOS payment dashboard card.
+     *
+     * Mirrors the getAllData() mode='hos' filter: payment rows at status 10
+     * whose proposal owner sits in the HOS's sub-org tree, OR proposals the
+     * HOS raised themselves. Joins sd_gem_direct + sd_mt_userdb to reach the
+     * requester's sd_org_id.
      */
-    public function getHosPendingCount()
+    public function getHosPendingCount($user_id = 0, array $hos_org_ids = [])
     {
+        if (empty($hos_org_ids) && $user_id < 1) return 0;
+        $org_ids_sql = empty($hos_org_ids) ? "-1" : implode(",", array_map('intval', $hos_org_ids));
         $select = ["COUNT(*) as total_count"];
-        $from = Table::GEM_DIRECT_PAYMENT;
-        $sql = "status = 10";
-        $row = $this->getAll($select, $from, $sql, "", "", [], true);
+        $from = Table::GEM_DIRECT_PAYMENT . " t1
+            INNER JOIN " . Table::GEM_DIRECT . " g1 ON g1.ID = t1.sd_gem_direct_id
+            INNER JOIN " . Table::USERS . " u1 ON u1.ID = g1.sd_mt_userdb_id";
+        $sql = "t1.status = 10
+            AND (u1.sd_org_id IN (" . $org_ids_sql . ") OR g1.sd_mt_userdb_id = :uid)";
+        $row = $this->getAll($select, $from, $sql, "", "", ["uid" => $user_id], true);
         return isset($row->total_count) ? (int) $row->total_count : 0;
     }
 

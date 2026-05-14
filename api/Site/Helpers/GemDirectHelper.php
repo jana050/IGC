@@ -650,17 +650,37 @@ class GemDirectHelper extends BaseHelper
 
     /**
      * Pending counts per role dashboard, for the home screen cards.
+     *
+     * $hos_org_ids is the set of org IDs the logged-in user heads as SH;
+     * pass an empty array for non-HOS users so hos_pending falls to 0.
      */
-    public function getPendingCounts($user_id)
+    public function getPendingCounts($user_id, array $hos_org_ids = [])
     {
         $out = new \stdClass();
         $out->user_pending = $this->countByOwnerAndStatuses($user_id, [10, 40, 29, 24]);
-        $out->hos_pending = $this->countByStatuses([10]);
+        $out->hos_pending = $this->countHosPending($user_id, $hos_org_ids, [10]);
         $out->chairman_pending = $this->countByStatuses([15, 17]);
         $out->vetter_pending = $this->countVetterPending($user_id);
         // proposals approved (20) that have no payment row yet
         $out->payment_pending = $this->countPaymentPending($user_id);
         return $out;
+    }
+
+    private function countHosPending($user_id, array $org_ids, array $statuses)
+    {
+        if (empty($statuses)) return 0;
+        // Mirror the getAll() case 'hos' filter: proposals from users in the
+        // HOS's sub-org tree, plus proposals the HOS raised themselves. If
+        // the user heads no orgs and no $user_id is given, count is 0.
+        if (empty($org_ids) && $user_id < 1) return 0;
+        $org_ids_sql = empty($org_ids) ? "-1" : implode(",", array_map('intval', $org_ids));
+        $select = ["COUNT(*) AS total_count"];
+        $from = Table::GEM_DIRECT . " t1
+            INNER JOIN " . Table::USERS . " t2 ON t1.sd_mt_userdb_id = t2.ID";
+        $sql = "t1.status IN (" . implode(",", array_map('intval', $statuses)) . ")
+            AND (t2.sd_org_id IN (" . $org_ids_sql . ") OR t1.sd_mt_userdb_id = :uid)";
+        $data = $this->getAll($select, $from, $sql, "", "", ["uid" => $user_id], true);
+        return isset($data->total_count) ? (int) $data->total_count : 0;
     }
 
     private function countPaymentPending($user_id)

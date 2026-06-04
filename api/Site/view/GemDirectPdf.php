@@ -17,17 +17,10 @@ class GemDirectPdf
             return $default;
         }
         $v = $this->data[$key];
-        // Guard against non-scalar values slipping in via JOINs / helpers
-        // (e.g. status_list arrays) — on PHP 8+ htmlspecialchars() throws a
-        // TypeError when given an array, which breaks the generated HTML
-        // and can confuse mPDF into producing garbage / many blank pages.
         if (is_array($v) || is_object($v)) {
             return $default;
         }
         $s = trim((string)$v);
-        // Treat empty string AND the literal text "null"/"undefined" as
-        // missing — historical rows have these strings stored when the
-        // frontend submitted a null value via String(null).
         if ($s === '' || strcasecmp($s, 'null') === 0 || strcasecmp($s, 'undefined') === 0) {
             return $default;
         }
@@ -36,59 +29,52 @@ class GemDirectPdf
 
     public function get_html()
     {
-        // Signature block for a given approver — shows the name when the
-        // stage is completed, otherwise a blank cell.
         $created_by = $this->get('created_by', '-');
-        // Indenter is shown as "Name / ICNO" — ICNO comes from the user's
-        // euserid (employee number). Falls back to just the name when ICNO
-        // isn't joined.
         $icno = $this->get('created_by_icno');
         $indenterName = $icno ? $created_by . ' / ' . $icno : $created_by;
 
-        // Signature cells just show the approver's name when the stage is
-        // completed (the name is the signature). Falls back to the org
-        // descriptor for HOS when no name is joined; chairman / vetter
-        // stay blank until they actually act.
         $sigHos = $this->get('hos_name');
         if (!$sigHos) { $sigHos = $this->get('hos_org_desc'); }
 
-        $sigChairman = $this->get('iibcc_chairman_name');
-
+        $sigChairmanSecretary = $this->get('iibcc_chairman_name');
         $sigVetter = $this->get('vetter_user_name');
 
-        // mPDF happily accepts a bare HTML fragment with a leading <style>.
-        // We deliberately omit <!DOCTYPE>, <html>, <head>, <body> and
-        // `@page` — the wrapping boilerplate has caused intermittent cases
-        // where mPDF rendered the document as empty / heavily paginated.
         $css = '
 <style>
-body { font-family: "Times New Roman", serif; font-size: 13px; color: #000; }
-.form-table { width: 100%; border-collapse: collapse; }
-.form-table td, .form-table th { border: 1px solid #000; padding: 7px 8px; vertical-align: top; font-size: 13px; word-wrap: break-word; }
-.form-table .lbl { font-weight: bold; width: 22%; }
-.form-table .sec { font-weight: bold; text-align: center; background: #e6e6e6; font-size: 14px; padding: 7px; }
+@page { margin: 8mm 12mm; }
+body { font-family: "Times New Roman", serif; font-size: 14px; color: #000; }
+.form-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.form-table td, .form-table th { border: 1px solid #000; padding: 4px 6px; vertical-align: top; font-size: 11px; word-wrap: break-word; overflow-wrap: break-word; }
+.form-table .lbl { font-weight: bold; }
+.form-table .sec { font-weight: bold; text-align: center; background: #e6e6e6; font-size: 12px; padding: 5px; }
 .form-table .c   { text-align: center; }
-.form-table .tall td { height: 60px; }
-.form-table .sig td { height: 55px; text-align: center; vertical-align: middle; font-weight: bold; }
+.form-table .tall td { height: 100px; vertical-align: top; }
+.form-table .sig td { height: 45px; text-align: center; vertical-align: middle; font-weight: bold; }
 .form-table .head-row td { vertical-align: middle; }
-.form-table .head-row .org    { text-align: center; font-weight: bold; font-size: 13px; line-height: 1.4; }
+.form-table .head-row .org    { text-align: center; font-weight: bold; font-size: 14px; line-height: 1.3; }
 .form-table .head-row .badge  { text-align: center; font-weight: bold; font-size: 14px; }
-.form-table .head-row .title  { text-align: center; font-weight: bold; font-size: 18px; }
-.notes { font-size: 11px; margin-top: 8px; line-height: 1.5; }
+.form-table .head-row .title  { text-align: center; font-weight: bold; font-size: 16px; }
+.notes { font-size: 9px; margin-top: 4px; line-height: 1.4; }
 .notes div { padding: 1px 0; }
 </style>';
 
         $body = '
 <table class="form-table">
+<colgroup>
+    <col style="width:25%"/>
+    <col style="width:25%"/>
+    <col style="width:25%"/>
+    <col style="width:25%"/>
+</colgroup>
 
 <tr class="head-row">
-    <td class="badge" style="width:18%">MC &amp; MFCG</td>
-    <td class="org" colspan="2" style="width:55%">
+    <td class="badge">MC &amp; MFCG</td>
+    <td class="org" colspan="2">
         Indira Gandhi Centre for Atomic Research<br/>
         Materials Chemistry &amp; Metal Fuel Cycle Group<br/>
         <span style="font-weight:normal;font-size:12px;">(GEM Direct Indent Form)</span>
     </td>
-    <td class="title" style="width:27%">INDENT FORM</td>
+    <td class="title">INDENT FORM</td>
 </tr>
 
 <tr>
@@ -112,7 +98,7 @@ body { font-family: "Times New Roman", serif; font-size: 13px; color: #000; }
 
 <tr>
     <td class="lbl">Section</td>
-    <td>'.$this->get('hos_org_desc', '-').'</td>
+    <td>'.$this->get('sd_org_id_desc', '-').'</td>
     <td class="lbl">Division / Sub-Group</td>
     <td>'.$this->get('hod_org_desc', '-').'</td>
 </tr>
@@ -157,9 +143,9 @@ body { font-family: "Times New Roman", serif; font-size: 13px; color: #000; }
 </tr>
 
 <tr>
-    <td colspan="2" class="sec" style="width:70%">Detailed Specifications</td>
-    <td class="sec c" style="width:15%">Quantity</td>
-    <td class="sec c" style="width:15%">Unit</td>
+    <td colspan="2" class="sec">Detailed Specifications</td>
+    <td class="sec c">Quantity</td>
+    <td class="sec c">Unit</td>
 </tr>
 
 <tr class="tall">
@@ -168,25 +154,59 @@ body { font-family: "Times New Roman", serif; font-size: 13px; color: #000; }
     <td class="c">'.$this->get('unit', '-').'</td>
 </tr>
 
-<tr><td colspan="4" class="sec">Signatures</td></tr>
+<tr>
+    <td colspan="4" style="padding:0;">
+        <table style="width:100%;border-collapse:collapse;" border="1">
 
-<tr class="sig">
-    <td>Indentor</td>
-    <td>'.$created_by.'</td>
-    <td>Approving Authority (HOS)</td>
-    <td>'.($sigHos ?: '').'</td>
-</tr>
+            <tr>
+                <td colspan="6" class="sec">Signatures</td>
+            </tr>
 
-<tr class="sig">
-    <td>IIBCC Chairman</td>
-    <td>'.($sigChairman ? $sigChairman . '<br/><span style="font-weight:normal;font-size:11px;">Approved Online</span>' : '').'</td>
-    <td>Budget Coordinator</td>
-    <td></td>
-</tr>
+            <tr class="sig">
+                <td width="20%"><b>Indentor</b></td>
+                <td width="10%">'.$created_by.'</td>
+                <td width="15%"></td>
 
-<tr class="sig">
-    <td colspan="2">Payment Authority Approval</td>
-    <td colspan="2"></td>
+                <td width="20%"><b>Approving Authority (HOS)</b></td>
+                <td width="10%">'.$sigHos.'</td>
+                <td width="15%"></td>
+            </tr>
+
+            <tr class="sig">
+                <td><b>IIBCC Chairman/Secretary</b></td>
+                <td>'.$sigChairmanSecretary.'</td>
+                <td>'.($sigChairmanSecretary ? 'Approved Online' : '').'</td>
+
+                <td>
+                    <b>Vetted By</b><br/>
+                    <span style="font-size:10px;">
+                    (Financial Approval / Budget Coordinator)
+                    </span>
+                </td>
+                <td>'.$sigVetter.'</td>
+                <td></td>
+            </tr>
+
+            <tr class="sig">
+                <td><b>Budget Coordinator</b></td>
+                <td></td>
+                <td></td>
+
+                <td><b>Payment Authority Approval</b></td>
+                <td></td>
+                <td></td>
+            </tr>
+
+            <tr class="sig">
+                <td><b>Stores Officer</b></td>
+                <td></td>
+                <td></td>
+
+                
+            </tr>
+
+        </table>
+    </td>
 </tr>
 
 </table>

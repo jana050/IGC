@@ -201,6 +201,7 @@ class GemDirectHelper extends BaseHelper
 
          LEFT JOIN " . Table::BUDGET_TYPE . " t15 ON t15.ID = t1.head_of_account
          LEFT JOIN " . Table::ORGANISATION . " t20 ON t2.sd_org_id = t20.ID
+         LEFT JOIN " . Table::ORGANISATION . " t25 ON t25.ID = t20.sd_org_id
         ";
 
 
@@ -253,6 +254,7 @@ class GemDirectHelper extends BaseHelper
     "t2.mobile_no as created_by_mobile_no",
     "t2.designation as created_by_designation",
     "t20.sd_org_name as sd_org_id_desc",
+    "t25.sd_org_name as hod_org_desc",
      "t2.intercome_number as created_by_intercome",
      "t2.euserid as created_by_icno",
      ];
@@ -290,6 +292,7 @@ class GemDirectHelper extends BaseHelper
 
          LEFT JOIN " . Table::BUDGET_TYPE . " t15 ON t15.ID = t1.head_of_account
          LEFT JOIN " . Table::ORGANISATION . " t20 ON t2.sd_org_id = t20.ID
+         LEFT JOIN " . Table::ORGANISATION . " t25 ON t25.ID = t20.sd_org_id
         ";
 
 
@@ -315,8 +318,9 @@ class GemDirectHelper extends BaseHelper
             "t2.mobile_no as created_by_mobile_no",
             "t2.designation as created_by_designation",
             "t20.sd_org_name as sd_org_id_desc",
+            "t25.sd_org_name as hod_org_desc",
             "t2.intercome_number as created_by_intercome",
-     "t2.euserid as created_by_icno",
+            "t2.euserid as created_by_icno",
         ];
 
 

@@ -42,20 +42,20 @@ class GemDirectPdf
         $css = '
 <style>
 @page { margin: 8mm 12mm; }
-body { font-family: "Times New Roman", serif; font-size: 14px; color: #000; }
+body { font-family: "Times New Roman", serif; font-size: 14px; color: #000; line-height: 1.3; }
 .form-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.form-table td, .form-table th { border: 1px solid #000; padding: 4px 6px; vertical-align: top; font-size: 11px; word-wrap: break-word; overflow-wrap: break-word; }
+.form-table td, .form-table th { border: 1px solid #000; padding: 6px 8px; vertical-align: top; font-size: 12px; word-wrap: break-word; overflow-wrap: break-word; }
 .form-table .lbl { font-weight: bold; }
-.form-table .sec { font-weight: bold; text-align: center; background: #e6e6e6; font-size: 12px; padding: 5px; }
+.form-table .sec { font-weight: bold; text-align: center; background: #e6e6e6; font-size: 13px; padding: 6px; }
 .form-table .c   { text-align: center; }
-.form-table .tall td { height: 100px; vertical-align: top; }
-.form-table .sig td { height: 45px; text-align: center; vertical-align: middle; font-weight: bold; }
+.form-table .tall td { height: 130px; vertical-align: top; }
+.form-table .sig td { height: 52px; text-align: center; vertical-align: middle; font-weight: bold; }
 .form-table .head-row td { vertical-align: middle; }
-.form-table .head-row .org    { text-align: center; font-weight: bold; font-size: 14px; line-height: 1.3; }
-.form-table .head-row .badge  { text-align: center; font-weight: bold; font-size: 14px; }
-.form-table .head-row .title  { text-align: center; font-weight: bold; font-size: 16px; }
-.notes { font-size: 9px; margin-top: 4px; line-height: 1.4; }
-.notes div { padding: 1px 0; }
+.form-table .head-row .org    { text-align: center; font-weight: bold; font-size: 15px; line-height: 1.3; }
+.form-table .head-row .badge  { text-align: center; font-weight: bold; font-size: 15px; }
+.form-table .head-row .title  { text-align: center; font-weight: bold; font-size: 17px; }
+.notes { font-size: 10px; margin-top: 6px; line-height: 1.5; }
+.notes div { padding: 2px 0; }
 </style>';
 
         $body = '
@@ -175,7 +175,7 @@ body { font-family: "Times New Roman", serif; font-size: 14px; color: #000; }
             <tr class="sig">
                 <td><b>IIBCC Chairman/Secretary</b></td>
                 <td>'.$sigChairmanSecretary.'</td>
-                <td>'.($sigChairmanSecretary ? 'Approved Online' : '').'</td>
+                <td>'.($sigChairmanSecretary ? '' : '').'</td>
 
                 <td>
                     <b>Vetted By</b><br/>

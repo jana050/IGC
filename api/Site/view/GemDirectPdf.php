@@ -175,7 +175,7 @@ body { font-family: "Times New Roman", serif; font-size: 14px; color: #000; line
             <tr class="sig">
                 <td><b>IIBCC Chairman/Secretary</b></td>
                 <td>'.$sigChairmanSecretary.'</td>
-                <td>'.($sigChairmanSecretary ? '' : '').'</td>
+                <td>'.($sigChairmanSecretary ? 'Signed Online' : '').'</td>
 
                 <td>
                     <b>Vetted By</b><br/>
@@ -184,7 +184,7 @@ body { font-family: "Times New Roman", serif; font-size: 14px; color: #000; line
                     </span>
                 </td>
                 <td>'.$sigVetter.'</td>
-                <td></td>
+                <td>'.($sigVetter ? 'Signed Online' : '').'</td>
             </tr>
 
             <tr class="sig">

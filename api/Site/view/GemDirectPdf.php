@@ -38,24 +38,25 @@ class GemDirectPdf
 
         $sigChairmanSecretary = $this->get('iibcc_chairman_name');
         $sigVetter = $this->get('vetter_user_name');
+        if (!$sigVetter) { $sigVetter = $this->get('financial_approval_name'); }
 
         $css = '
 <style>
-@page { margin: 8mm 12mm; }
-body { font-family: "Times New Roman", serif; font-size: 14px; color: #000; line-height: 1.3; }
+@page { margin: 8mm 10mm 5mm 10mm; }
+body { font-family: "Times New Roman", serif; font-size: 14px; color: #000; line-height: 1.3; margin: 0; padding: 0; }
 .form-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.form-table td, .form-table th { border: 1px solid #000; padding: 6px 8px; vertical-align: top; font-size: 12px; word-wrap: break-word; overflow-wrap: break-word; }
+.form-table td, .form-table th { border: 1px solid #000; padding: 5px 7px; vertical-align: top; font-size: 13px; word-wrap: break-word; overflow-wrap: break-word; }
 .form-table .lbl { font-weight: bold; }
-.form-table .sec { font-weight: bold; text-align: center; background: #e6e6e6; font-size: 13px; padding: 6px; }
+.form-table .sec { font-weight: bold; text-align: center; background: #e6e6e6; font-size: 14px; padding: 6px; }
 .form-table .c   { text-align: center; }
-.form-table .tall td { height: 130px; vertical-align: top; }
-.form-table .sig td { height: 52px; text-align: center; vertical-align: middle; font-weight: bold; }
+.form-table .tall td { height: 40mm; vertical-align: top; }
+.form-table .sig td { height: 14mm; text-align: center; vertical-align: middle; font-weight: bold; font-size: 13px; }
 .form-table .head-row td { vertical-align: middle; }
-.form-table .head-row .org    { text-align: center; font-weight: bold; font-size: 15px; line-height: 1.3; }
+.form-table .head-row .org    { text-align: center; font-weight: bold; font-size: 15px; line-height: 1.4; }
 .form-table .head-row .badge  { text-align: center; font-weight: bold; font-size: 15px; }
 .form-table .head-row .title  { text-align: center; font-weight: bold; font-size: 17px; }
-.notes { font-size: 10px; margin-top: 6px; line-height: 1.5; }
-.notes div { padding: 2px 0; }
+.notes { font-size: 11px; margin-top: 4px; line-height: 1.5; }
+.notes div { padding: 1px 0; }
 </style>';
 
         $body = '
@@ -165,11 +166,11 @@ body { font-family: "Times New Roman", serif; font-size: 14px; color: #000; line
             <tr class="sig">
                 <td width="20%"><b>Indentor</b></td>
                 <td width="10%">'.$created_by.'</td>
-                <td width="15%"></td>
+                <td width="15%">'.($created_by ? '' : '').'</td>
 
                 <td width="20%"><b>Approving Authority (HOS)</b></td>
                 <td width="10%">'.$sigHos.'</td>
-                <td width="15%"></td>
+                <td width="15%">'.($sigHos ? '' : '').'</td>
             </tr>
 
             <tr class="sig">
@@ -179,11 +180,11 @@ body { font-family: "Times New Roman", serif; font-size: 14px; color: #000; line
 
                 <td>
                     <b>Vetted By</b><br/>
-                    <span style="font-size:10px;">
+                    <span style="font-size:11px;">
                     (Financial Approval / Budget Coordinator)
                     </span>
                 </td>
-                <td>'.$sigVetter.'</td>
+                <td>'.($sigVetter ?: '').'</td>
                 <td>'.($sigVetter ? 'Signed Online' : '').'</td>
             </tr>
 

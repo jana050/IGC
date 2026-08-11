@@ -59,6 +59,7 @@ class CommonRouter
         $this->_routes["/user/get_one_image"] = [SmartConst::REQUEST_POST, $controller, "getOneImage"];
         //
         $this->_routes["/user/get_all_select_role"] = [SmartConst::REQUEST_POST, $controller, "getAllRoleIndex"];
+        $this->_routes["/user/get_all_select_by_role_id"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "getUsersByRoleId"];
     }
 
     private function role_routes()
@@ -532,7 +533,60 @@ class CommonRouter
         $this->_routes["/complaintTypes/get_comp_type"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "getComplaintType"];
     }
     /**
-     * 
+     *
+     */
+    private function requisition_type_routes()
+    {
+        $controller = "RequisitionTypeController";
+        $this->_routes["/requisitionTypes/insert"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "insert"];
+        $this->_routes["/requisitionTypes/update"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "update"];
+        $this->_routes["/requisitionTypes/get_all"] = [SmartConst::REQUEST_GET, $this->_admin_only, $controller, "getAll"];
+        $this->_routes["/requisitionTypes/get_all_select"] = [SmartConst::REQUEST_GET, $controller, "getAllDropDown"];
+        $this->_routes["/requisitionTypes/get_one"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "getOne"];
+        $this->_routes["/requisitionTypes/delete_one"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "deleteOne"];
+    }
+    /**
+     *
+     */
+    private function requisition_routes()
+    {
+        $controller = "RequisitionController";
+        $this->_routes["/requisition/insert"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "insert"];
+        $this->_routes["/requisition/update"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "update"];
+
+        $this->_routes["/requisition/get_all/admin/wait"] = [
+            SmartConst::REQUEST_POST,
+            $this->_admin_user,
+            $controller,
+            "getAll",
+            ["mode" => "admin", "status" => [10, 14, 19, 30]]
+        ];
+
+        $this->_routes["/requisition/get_all/admin/process"] = [
+            SmartConst::REQUEST_POST,
+            $this->_admin_user,
+            $controller,
+            "getAll",
+            ["mode" => "admin", "status" => [11, 15, 19]]
+        ];
+
+        $this->_routes["/requisition/get_all/user"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "getAll", ["mode" => "user"]];
+        $this->_routes["/requisition/get_all/supervisor"] = [
+            SmartConst::REQUEST_POST,
+            $this->_admin_user,
+            $controller,
+            "getAll",
+            ["mode" => "supervisor", "status" => [10, 14, 15, 19]]
+        ];
+
+        $this->_routes["/requisition/get_one"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "getOne"];
+        $this->_routes["/requisition/delete_one"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "deleteOne"];
+        $this->_routes["/requisition/update_app"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "updateApp"];
+        $this->_routes["/requisition/supervisor_get_all"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "supervisorGetAll"];
+        $this->_routes["/requisition/get_one_file"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "getOneFile"];
+    }
+    /**
+     *
      */
     private function workshop_routes()
     {
@@ -572,6 +626,11 @@ class CommonRouter
         $this->_routes["/workshop/get_one"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "getOne"];
         $this->_routes["/workshop/delete_one"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "deleteOne"];
         $this->_routes["/workshop/get_one_pdf"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "getOnePdf"];
+
+        // -------- Supervisor (role from the 'workshop_supervisor' site setting) --------
+        $this->_routes["/workshop/supervisor_get_all"] = [SmartConst::REQUEST_GET, $this->_admin_user, $controller, "supervisorGetAll"];
+        $this->_routes["/workshop/update_supervisor"] = [SmartConst::REQUEST_POST, $this->_admin_user, $controller, "updateSupervisor"];
+        $this->_routes["/workshop/supervisor_user_select"] = [SmartConst::REQUEST_GET, $this->_admin_user, $controller, "supervisorUserSelect"];
     }
     /**
      * 
@@ -1730,14 +1789,14 @@ class CommonRouter
             $this->_admin_user,
             $controller,
             "getAll",
-            ["mode" => "admin", "status" => [6, 10, 14, 15, 16, 17, 19, 20, 21, 24, 29, 30, 40]]
+            ["mode" => "admin", "status" => [6, 10, 14, 15, 16, 17, 19, 20, 21, 24, 29, 30, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]]
         ];
         $this->_routes["/gem_direct/get_all/admin/wait"] = [
             SmartConst::REQUEST_GET,
             $this->_admin_user,
             $controller,
             "getAll",
-            ["mode" => "admin", "status" => [10, 15, 14, 16, 17, 24, 29, 40]]
+            ["mode" => "admin", "status" => [10, 15, 14, 16, 17, 24, 29, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49]]
 
         ];
         $this->_routes["/gem_direct/get_all/admin/process"] = [
@@ -1763,9 +1822,48 @@ class CommonRouter
             $this->_admin_user,
             $controller,
             "getAll",
-            ["mode" => "hos", "status" => [14, 15, 16, 17, 19, 20, 21, 24, 29, 30, 40]]
+            ["mode" => "hos", "status" => [14, 15, 16, 17, 19, 20, 21, 24, 29, 30, 40, 41]]
 
 
+        ];
+
+        // -------- HOD --------
+        $this->_routes["/gem_direct/get_all/hod/wait"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "getAll",
+            ["mode" => "hod", "status" => [41]]
+        ];
+        $this->_routes["/gem_direct/get_all/hod/process"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "getAll",
+            ["mode" => "hod", "status" => [42, 43, 44, 15, 16, 17, 19, 20, 29]]
+        ];
+        $this->_routes["/gem_direct/update_hod"] = [
+            SmartConst::REQUEST_POST, $this->_admin_user, $controller, "updateApprovalHod"
+        ];
+
+        // -------- AD --------
+        $this->_routes["/gem_direct/get_all/ad/wait"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "getAll",
+            ["mode" => "ad", "status" => [44]]
+        ];
+        $this->_routes["/gem_direct/get_all/ad/process"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "getAll",
+            ["mode" => "ad", "status" => [45, 46, 47, 15, 16, 17, 19, 20, 29]]
+        ];
+        $this->_routes["/gem_direct/update_ad"] = [
+            SmartConst::REQUEST_POST, $this->_admin_user, $controller, "updateApprovalAd"
+        ];
+
+        // -------- GD --------
+        $this->_routes["/gem_direct/get_all/gd/wait"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "getAll",
+            ["mode" => "gd", "status" => [47]]
+        ];
+        $this->_routes["/gem_direct/get_all/gd/process"] = [
+            SmartConst::REQUEST_GET, $this->_admin_user, $controller, "getAll",
+            ["mode" => "gd", "status" => [48, 49, 15, 16, 17, 19, 20, 29]]
+        ];
+        $this->_routes["/gem_direct/update_gd"] = [
+            SmartConst::REQUEST_POST, $this->_admin_user, $controller, "updateApprovalGd"
         ];
 
         $this->_routes["/gem_direct/get_all/financial_approval/wait"] = [
@@ -1896,6 +1994,8 @@ class CommonRouter
         $this->org_routes();
         $this->doc_type_routes();
         $this->comman_complaint_routes();
+        $this->requisition_type_routes();
+        $this->requisition_routes();
         $this->workshop_routes();
         $this->acv_shutdown_routes();
         $this->elec_shutdown_routes();

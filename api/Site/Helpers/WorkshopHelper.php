@@ -40,7 +40,10 @@ class WorkshopHelper extends BaseHelper
         "created_time" => SmartConst::SCHEMA_CDATETIME,
         "last_modified_by" => SmartConst::SCHEMA_CUSER_ID,
         "last_modified_remarks" => SmartConst::SCHEMA_TEXT,
-        "last_modified_time" => SmartConst::SCHEMA_CTIME
+        "last_modified_time" => SmartConst::SCHEMA_CTIME,
+        "supervisor" => SmartConst::SCHEMA_INTEGER,
+        "supervisor_description" => SmartConst::SCHEMA_TEXT,
+        "supervisor_time" => SmartConst::SCHEMA_CTIME
 
     ];
     /**
@@ -144,26 +147,48 @@ class WorkshopHelper extends BaseHelper
      */
     public function getAllData($sql = "", $data_in = [], $group_by = "", $count = false)
     {
-        $from = Table::WORKSHOP . " t1 
-        INNER JOIN " . Table::USERS . " t2 ON t1.sd_mt_userdb_id = t2.ID";
-        $select = ["t1.*,t2.ename as created_by"];
+        $from = Table::WORKSHOP . " t1
+        INNER JOIN " . Table::USERS . " t2 ON t1.sd_mt_userdb_id = t2.ID
+        LEFT JOIN " . Table::USERS . " t10 ON t10.ID = t1.supervisor";
+        $select = ["t1.*,t2.ename as created_by", "t10.ename as supervisor_name"];
         $order_by = "t1.created_time DESC";
         return $this->getAll($select, $from, $sql, $group_by, $order_by, $data_in, false, [], $count);
     }
     /**
-     * 
+     *
      */
     public function getOneData($id)
     {
-        $from = Table::WORKSHOP . " t1 
-        INNER JOIN " . Table::USERS . " t2 ON t1.sd_mt_userdb_id = t2.ID 
+        $from = Table::WORKSHOP . " t1
+        INNER JOIN " . Table::USERS . " t2 ON t1.sd_mt_userdb_id = t2.ID
+        LEFT JOIN " . Table::USERS . " t10 ON t10.ID = t1.supervisor
         ";
-        $select = ["t1.*,t2.ename as created_by"];
+        $select = ["t1.*,t2.ename as created_by", "t10.ename as supervisor_name"];
         $sql = "t1.ID=:ID";
         $data_in = ["ID" => $id];
         $group_by = "";
         $order_by = "";
         return $this->getAll($select, $from, $sql, $group_by, $order_by, $data_in, true, []);
+    }
+
+    /**
+     * Users assigned to the role stored under a given site-settings key
+     * (e.g. 'workshop_supervisor'). Workshop has no per-request "type" to
+     * hang a supervisor role off of (unlike Custom Requisition/Complaints),
+     * so the pool comes from one fixed site setting instead. Mirrors
+     * GemDirectHelper::getUsersByRoleKey().
+     */
+    public function getUsersByRoleKey($role_key)
+    {
+        $role_id = \Core\Helpers\SmartSiteSettings::getSetting($role_key);
+        if (empty($role_id)) return [];
+
+        $from = Table::USERS . " t1
+            INNER JOIN " . Table::USERROLE . " t3 ON t1.ID = t3.sd_mt_userdb_id";
+        $select = ["t1.ID as value", "t1.ename as label"];
+        $sql = "t3.sd_mt_role_id = :ID";
+        $data_in = ["ID" => $role_id];
+        return $this->getAll($select, $from, $sql, "", "t1.ename", $data_in, false, []);
     }
     /**
      * 

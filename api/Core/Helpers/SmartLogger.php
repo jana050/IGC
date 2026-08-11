@@ -10,7 +10,7 @@ namespace Core\Helpers;
 /**
  * Description of SmartLogger
  *
- * @author SUBBA RAJU
+ * @author 
  */
 class SmartLogger
 {

@@ -45,6 +45,15 @@ class GemDirectHelper extends BaseHelper
         "hos_id" => SmartConst::SCHEMA_CUSER_ID,
         "hos_remarks" => SmartConst::SCHEMA_TEXT,
         "hos_time" => SmartConst::SCHEMA_CTIME,
+        "hod_id" => SmartConst::SCHEMA_CUSER_ID,
+        "hod_remarks" => SmartConst::SCHEMA_TEXT,
+        "hod_time" => SmartConst::SCHEMA_CTIME,
+        "ad_id" => SmartConst::SCHEMA_CUSER_ID,
+        "ad_remarks" => SmartConst::SCHEMA_TEXT,
+        "ad_time" => SmartConst::SCHEMA_CTIME,
+        "gd_id" => SmartConst::SCHEMA_CUSER_ID,
+        "gd_remarks" => SmartConst::SCHEMA_TEXT,
+        "gd_time" => SmartConst::SCHEMA_CTIME,
         "financial_approval_id" => SmartConst::SCHEMA_CUSER_ID,
         "financial_approval_remarks" => SmartConst::SCHEMA_TEXT,
         "financial_approval_time" => SmartConst::SCHEMA_CTIME,
@@ -199,6 +208,10 @@ class GemDirectHelper extends BaseHelper
          LEFT JOIN " . Table::USERS . " t30 ON t30.ID = t1.iibcc_chairman_id
          LEFT JOIN " . Table::USERS . " t31 ON t31.ID = t1.vetter_user_id
 
+         LEFT JOIN " . Table::USERS . " t40 ON t40.ID = t1.hod_id
+         LEFT JOIN " . Table::USERS . " t41 ON t41.ID = t1.ad_id
+         LEFT JOIN " . Table::USERS . " t42 ON t42.ID = t1.gd_id
+
          LEFT JOIN " . Table::BUDGET_TYPE . " t15 ON t15.ID = t1.head_of_account
          LEFT JOIN " . Table::ORGANISATION . " t20 ON t2.sd_org_id = t20.ID
          LEFT JOIN " . Table::ORGANISATION . " t25 ON t25.ID = t20.sd_org_id
@@ -241,6 +254,9 @@ class GemDirectHelper extends BaseHelper
     "t13.ename as financial_approval_name",
     "t30.ename as iibcc_chairman_name",
     "t31.ename as vetter_user_name",
+    "t40.ename as hod_name",
+    "t41.ename as ad_name",
+    "t42.ename as gd_name",
     "t21.sd_org_name as hos_org_desc",
     "t23.sd_org_name as financial_approval_org_desc",
     "CASE
@@ -290,6 +306,10 @@ class GemDirectHelper extends BaseHelper
          LEFT JOIN " . Table::USERS . " t30 ON t30.ID = t1.iibcc_chairman_id
          LEFT JOIN " . Table::USERS . " t31 ON t31.ID = t1.vetter_user_id
 
+         LEFT JOIN " . Table::USERS . " t40 ON t40.ID = t1.hod_id
+         LEFT JOIN " . Table::USERS . " t41 ON t41.ID = t1.ad_id
+         LEFT JOIN " . Table::USERS . " t42 ON t42.ID = t1.gd_id
+
          LEFT JOIN " . Table::BUDGET_TYPE . " t15 ON t15.ID = t1.head_of_account
          LEFT JOIN " . Table::ORGANISATION . " t20 ON t2.sd_org_id = t20.ID
          LEFT JOIN " . Table::ORGANISATION . " t25 ON t25.ID = t20.sd_org_id
@@ -305,6 +325,9 @@ class GemDirectHelper extends BaseHelper
             "t13.ename as financial_approval_name",
             "t30.ename as iibcc_chairman_name",
             "t31.ename as vetter_user_name",
+            "t40.ename as hod_name",
+            "t41.ename as ad_name",
+            "t42.ename as gd_name",
             "t21.sd_org_name as hos_org_desc",
             "t23.sd_org_name as financial_approval_org_desc",
             "CASE
@@ -422,19 +445,73 @@ class GemDirectHelper extends BaseHelper
     // ISSUED the rework — that way the tracker can highlight which step
     // bounced the proposal back, while the proposal itself is back at the
     // user (handled separately in the loop below).
-    public static $STATUS_GROUPED = [
-        'User Submission' => [10],                      // 10 = submitted
-        'HOS' => [15, 14, 40],                          // 15 approve, 14 reject, 40 rework
-        'IIBCC Chairman' => [16, 17, 19, 20, 29],       // 16 sent-to-vetter, 17 vetter-returned, 29 rework, 19 reject, 20 approved
-        'Vetter' => [16, 17, 24],                       // 16 under vetting, 17 vetter-approved, 24 rework
-    ];
+    // HOD/AD/GD only enter the chain when total_cost exceeds the lower
+    // level's own approval limit (see GemDirectController::updateApprovalHos/
+    // Hod/Ad — escalation is amount-driven, cascading through the org
+    // hierarchy). When a proposal is approved by a lower level within its
+    // own limit it jumps straight to 15 (waiting Chairman), skipping the
+    // higher levels entirely — those groups then never match 15 and are
+    // simply never "current" for that proposal, same as any role a
+    // proposal never passes through.
+    //
+    // The IIBCC Chairman decides TWICE whenever a Vetter is involved: once
+    // to assign the Vetter (status 16), then again for the final decision
+    // once the Vetter approves (status 17 -> 19/20/29). Those two decisions
+    // are modelled as separate tracker steps ('IIBCC Chairman' and 'IIBCC
+    // Chairman - Final Approval') built dynamically in getStatusTracker(),
+    // not as a static property, because which one owns the terminal codes
+    // 19/20/29 depends on whether a Vetter was actually engaged for this
+    // proposal — see buildChairmanVetterGroups().
+    public static $REWORK_CODES = [40, 24, 29, 43, 46, 49];
+    public static $REJECT_CODES = [14, 19, 42, 45, 48];
 
-    // Codes where the role bounced the proposal — split into "rework"
-    // (proposal back at user, can be re-submitted) and "reject" (terminal).
-    public static $REWORK_CODES = [40, 24, 29];
-    public static $REJECT_CODES = [14, 19];
+    // Codes that mean "awaiting this role's decision" rather than "this
+    // role already decided". A step showing as `is_current` on one of
+    // these must NOT also show as `is_completed` — that combination would
+    // render as a plain finished/green step, hiding the fact that nothing
+    // has actually happened here yet. (14/19/20/29/40/42/43/45/46/48/49
+    // etc. are all *outcomes* — the role in question already acted — so
+    // completed-on-current is correct for those and left alone.)
+    public static $WAITING_CODES = [16, 17, 41, 44, 47];
 
-    public function getStatusTracker($currentStatus, $createdBy = null)
+    // Builds the Chairman/Vetter portion of the tracker. A Vetter is NOT a
+    // default step in the workflow — the Chairman decides, per proposal,
+    // whether to approve/reject/rework directly or route it through a
+    // Vetter first (see the "Assign to Vetter" option on the Chairman's
+    // decision form). So the Vetter + "Final Approval" steps only appear
+    // once that choice has actually been made (a Vetter is assigned, or
+    // the proposal is currently sitting at/through that stage) — never as
+    // a speculative "might happen" step while the Chairman's first review
+    // is still pending.
+    //
+    // 'IIBCC Chairman' (first) is given NO codes of its own once a Vetter
+    // is in play — by that point its own decision (to assign) is already
+    // in the past, so it should never itself become `is_current` again.
+    // Using 16 here (deliberately, in an earlier version) collided with
+    // Vetter's own "waiting" code and double-lit both steps at once.
+    private function buildChairmanVetterGroups($currentStatus, $vetterEngaged)
+    {
+        $terminal = [19, 20, 29];
+        $vetterInPlay = $vetterEngaged || in_array($currentStatus, [16, 17, 24], true);
+
+        if (!$vetterInPlay) {
+            return ['IIBCC Chairman' => $terminal];
+        }
+        return [
+            'IIBCC Chairman' => [],
+            'Vetter' => [16, 24],
+            'IIBCC Chairman - Final Approval' => array_merge([17], $terminal),
+        ];
+    }
+
+    // $totalCost, when given, drops the HOD/AD/GD steps the proposal will
+    // never actually need — e.g. a ₹50,000 proposal only ever needs HOS
+    // before the Chairman, so showing HOD/AD/GD as upcoming steps would be
+    // misleading. Thresholds mirror the escalation checks in
+    // updateApprovalHos/Hod/Ad (same SmartSiteSettings keys/defaults).
+    // $vetterUserId, when set, means a Vetter was assigned at some point —
+    // see buildChairmanVetterGroups().
+    public function getStatusTracker($currentStatus, $createdBy = null, $totalCost = null, $vetterUserId = null)
     {
         $tracker = [];
         $foundCurrent = false;
@@ -443,7 +520,36 @@ class GemDirectHelper extends BaseHelper
         $isReworkOverall = in_array($currentStatus, self::$REWORK_CODES);
         $isRejectOverall = in_array($currentStatus, self::$REJECT_CODES);
 
-        foreach (self::$STATUS_GROUPED as $label => $codes) {
+        $skipLabels = [];
+        if ($totalCost !== null) {
+            $hos_max = floatval(\Core\Helpers\SmartSiteSettings::getSetting("gem_direct_hos_max", 50000));
+            $hod_max = floatval(\Core\Helpers\SmartSiteSettings::getSetting("gem_direct_hod_max", 100000));
+            $ad_max = floatval(\Core\Helpers\SmartSiteSettings::getSetting("gem_direct_ad_max", 250000));
+            if ($totalCost <= $hos_max) $skipLabels = ['HOD', 'AD', 'GD'];
+            else if ($totalCost <= $hod_max) $skipLabels = ['AD', 'GD'];
+            else if ($totalCost <= $ad_max) $skipLabels = ['GD'];
+        }
+
+        $groups = array_merge(
+            [
+                'User Submission' => [10],                      // 10 = submitted
+                'HOS' => [15, 14, 40],                          // 15 approve, 14 reject, 40 rework
+                'HOD' => [41, 42, 43],                          // 41 waiting, 42 reject, 43 rework
+                'AD' => [44, 45, 46],                           // 44 waiting, 45 reject, 46 rework
+                'GD' => [47, 48, 49],                           // 47 waiting, 48 reject, 49 rework
+            ],
+            $this->buildChairmanVetterGroups($currentStatus, !empty($vetterUserId))
+        );
+        $vetterFinalLabel = 'IIBCC Chairman - Final Approval';
+
+        foreach ($groups as $label => $codes) {
+            // Skip steps this proposal's amount will never reach, UNLESS
+            // it's already sitting there (e.g. thresholds changed after
+            // submission) — never hide the proposal's actual current/reject
+            // step.
+            if (in_array($label, $skipLabels, true) && !in_array($currentStatus, $codes, true)) {
+                continue;
+            }
             $isAtRole = in_array($currentStatus, $codes);
 
             // Mark this role as the rejecter when the current code is a
@@ -454,7 +560,13 @@ class GemDirectHelper extends BaseHelper
                 $isReject = true;
             } else if ($currentStatus === 40 && $label === 'HOS') {
                 $isReject = true;
-            } else if ($currentStatus === 29 && $label === 'IIBCC Chairman') {
+            } else if ($currentStatus === 43 && $label === 'HOD') {
+                $isReject = true;
+            } else if ($currentStatus === 46 && $label === 'AD') {
+                $isReject = true;
+            } else if ($currentStatus === 49 && $label === 'GD') {
+                $isReject = true;
+            } else if ($currentStatus === 29 && in_array($label, ['IIBCC Chairman', $vetterFinalLabel], true) && in_array(29, $codes, true)) {
                 $isReject = true;
             } else if ($currentStatus === 24 && $label === 'Vetter') {
                 $isReject = true;
@@ -479,13 +591,16 @@ class GemDirectHelper extends BaseHelper
             }
 
             // Completion: roles before the current/reject point are done,
-            // anything after is pending.
+            // anything after is pending. A role that's current because
+            // we're merely WAITING on its decision (16/17/41/44/47) is not
+            // "completed" — nothing has happened there yet — so it stays
+            // is_current + NOT completed until it actually decides.
             if ($isReject) {
                 $isCompleted = false;
             } elseif ($rejectFound) {
                 $isCompleted = false;
             } elseif ($isCurrent) {
-                $isCompleted = true;
+                $isCompleted = !in_array($currentStatus, self::$WAITING_CODES, true);
                 $foundCurrent = true;
             } elseif (!$foundCurrent) {
                 $isCompleted = true;
@@ -497,7 +612,7 @@ class GemDirectHelper extends BaseHelper
             $displayLabel = ($label === 'User Submission' && $createdBy) ? $createdBy : $label;
 
             $tracker[] = [
-                'status' => $codes[0],
+                'status' => $codes[0] ?? $currentStatus,
                 'label' => $displayLabel,
                 'is_current' => $isCurrent,
                 'is_completed' => $isCompleted,
@@ -520,6 +635,15 @@ class GemDirectHelper extends BaseHelper
         'HOS Approved' => [15],
         'HOS Reject' => [14],
         'HOS Rework' => [40],
+        'Waiting for HOD' => [41],
+        'HOD Reject' => [42],
+        'HOD Rework' => [43],
+        'Waiting for AD' => [44],
+        'AD Reject' => [45],
+        'AD Rework' => [46],
+        'Waiting for GD' => [47],
+        'GD Reject' => [48],
+        'GD Rework' => [49],
         'Sent to Vetter' => [16],
         'Vetter Approved' => [17],
         'Vetter Rework' => [24],
@@ -655,14 +779,18 @@ class GemDirectHelper extends BaseHelper
     /**
      * Pending counts per role dashboard, for the home screen cards.
      *
-     * $hos_org_ids is the set of org IDs the logged-in user heads as SH;
-     * pass an empty array for non-HOS users so hos_pending falls to 0.
+     * $hos_org_ids/$hod_org_ids/$ad_org_ids/$gd_org_ids are the sets of org
+     * IDs the logged-in user heads as SH/DH/AD/GD respectively; pass an
+     * empty array for users who don't hold that role so the count falls to 0.
      */
-    public function getPendingCounts($user_id, array $hos_org_ids = [])
+    public function getPendingCounts($user_id, array $hos_org_ids = [], array $hod_org_ids = [], array $ad_org_ids = [], array $gd_org_ids = [])
     {
         $out = new \stdClass();
-        $out->user_pending = $this->countByOwnerAndStatuses($user_id, [10, 40, 29, 24]);
+        $out->user_pending = $this->countByOwnerAndStatuses($user_id, [10, 40, 29, 24, 43, 46, 49]);
         $out->hos_pending = $this->countHosPending($user_id, $hos_org_ids, [10]);
+        $out->hod_pending = $this->countHosPending($user_id, $hod_org_ids, [41]);
+        $out->ad_pending = $this->countHosPending($user_id, $ad_org_ids, [44]);
+        $out->gd_pending = $this->countHosPending($user_id, $gd_org_ids, [47]);
         $out->chairman_pending = $this->countByStatuses([15, 17]);
         $out->vetter_pending = $this->countVetterPending($user_id);
         // proposals approved (20) that have no payment row yet
@@ -670,6 +798,10 @@ class GemDirectHelper extends BaseHelper
         return $out;
     }
 
+    // Shared by HOS/HOD/AD/GD pending counts — filters proposals raised by
+    // users under the given org-head's sub-org tree, plus proposals the
+    // org-head raised themselves (self-raised proposals still need to clear
+    // that head's own approval queue).
     private function countHosPending($user_id, array $org_ids, array $statuses)
     {
         if (empty($statuses)) return 0;

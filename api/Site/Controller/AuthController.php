@@ -13,6 +13,7 @@ use Site\Helpers\UserHelper;
 use Site\Helpers\UserRoleHelper;
 use Site\Helpers\SiteHelper;
 use Site\Helpers\CommanComplaintHelper;
+use Site\Helpers\RequisitionTypeHelper;
 use Site\Helpers\OrganisationHelper;
 
 
@@ -24,21 +25,24 @@ class AuthController extends BaseController
     private SiteHelper $_site_helper;
     private MeetRoomHelper $_meet_room_helper;
     private CommanComplaintHelper $_complaint_helper;
+    private RequisitionTypeHelper $_requisition_type_helper;
     private OrganisationHelper $_org_helper;
 
     function __construct($params)
     {
         parent::__construct($params);
-        // 
+        //
         $this->_user_helper = new UserHelper($this->db);
         //
         $this->_user_role_helper = new UserRoleHelper($this->db);
         //
         $this->_site_helper = new SiteHelper($this->db);
-        // 
+        //
         $this->_meet_room_helper = new MeetRoomHelper($this->db);
         //
         $this->_complaint_helper = new CommanComplaintHelper($this->db);
+        //
+        $this->_requisition_type_helper = new RequisitionTypeHelper($this->db);
         //
         $this->_org_helper = new OrganisationHelper($this->db);
     }
@@ -219,15 +223,26 @@ class AuthController extends BaseController
             if ($role->value == intval($system_supervisor)) {
                 $role_names[] = "SUPERVISOR";
             }
-            $complain_data = $this->_complaint_helper->checkRoleExist($role->value);
+            $complain_admin_data = $this->_complaint_helper->checkRoleExist($role->value);
             // echo "role of employee " . $role->value;
-            // var_dump($complain_data);
-            if (isset($complain_data->ID)) {
-                $role_names[] = 'SD_COM_' . $complain_data->ID . '_ADMIN';
-                $role_names[] = 'SD_COM_' . $complain_data->ID . '_SUPERVISOR';
+            // var_dump($complain_admin_data);
+            if (isset($complain_admin_data->ID)) {
+                $role_names[] = 'SD_COM_' . $complain_admin_data->ID . '_ADMIN';
+            }
+            $complain_supervisor_data = $this->_complaint_helper->checkSupervisorRoleExist($role->value);
+            if (isset($complain_supervisor_data->ID)) {
+                $role_names[] = 'SD_COM_' . $complain_supervisor_data->ID . '_SUPERVISOR';
+            }
+            $req_admin_data = $this->_requisition_type_helper->checkRoleExist($role->value);
+            if (isset($req_admin_data->ID)) {
+                $role_names[] = 'SD_REQ_' . $req_admin_data->ID . '_ADMIN';
+            }
+            $req_supervisor_data = $this->_requisition_type_helper->checkSupervisorRoleExist($role->value);
+            if (isset($req_supervisor_data->ID)) {
+                $role_names[] = 'SD_REQ_' . $req_supervisor_data->ID . '_SUPERVISOR';
             }
 
-            // check for all meets 
+            // check for all meets
             $meet_role = $this->checkMeetType($role->value);
             if (count($meet_role) > 0) {
                 $role_names = array_merge($role_names, $meet_role);
@@ -279,6 +294,11 @@ class AuthController extends BaseController
     // }
     private function get_response($user_data)
     {
+        // Raw assigned role id/label pairs, needed by SmartAuthHelper::getRolesArr()
+        // for document-permission role checks. Must be set before the JWT is
+        // encoded below, since that is the only copy of $user_data later requests see.
+        $user_data->roles = $this->_user_role_helper->getSelectedRolesWithUserId($user_data->ID);
+
         $payload = array(
             "USER" => $user_data
         );

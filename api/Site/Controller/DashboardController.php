@@ -112,8 +112,14 @@ class DashboardController extends BaseController
             return [];
         }
     }
+
+    private function get_common_complaints_supervisor_dashboard()
+    {
+        $id = SmartAuthHelper::getLoggedInId();
+        return $this->_common_complaint_helper->getSupervisorDashBoard($id);
+    }
     /**
-     * 
+     *
      */
     public function getCounts()
     {
@@ -188,6 +194,7 @@ class DashboardController extends BaseController
 
         // custom complaint types dashboard
         $db->custom = $this->get_common_complaints_dashboard();
+        $db->custom_supervisor = $this->get_common_complaints_supervisor_dashboard();
 
         $this->response($db);
     }

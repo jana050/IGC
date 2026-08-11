@@ -40,6 +40,8 @@ class TableHelper
    const DOCCATEGORY = "sd_doc_category";
    const COMPLAINTTYPES = "sd_complaint_types";
    const COMPLAINTS = "sd_complaints";
+   const REQUISITIONTYPES = "sd_requisition_types";
+   const REQUISITIONS = "sd_requisitions";
    const WORKSHOP = "sd_workshop";
    const ACV_SHUTDOWN = "sd_acv_shutdown";
    const ELECTRICAL_SHUTDOWN = "sd_electrical_shutdown";

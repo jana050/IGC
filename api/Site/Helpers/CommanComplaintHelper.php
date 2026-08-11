@@ -29,6 +29,7 @@ class CommanComplaintHelper extends BaseHelper
         // complaint types table
         "complaint_type" => SmartConst::SCHEMA_VARCHAR,
         "complaint_admin" => SmartConst::SCHEMA_INTEGER,
+        "complaint_supervisor" => SmartConst::SCHEMA_INTEGER,
         // complaints table
         "type" => SmartConst::SCHEMA_VARCHAR,
         "title" => SmartConst::SCHEMA_VARCHAR,
@@ -61,6 +62,12 @@ class CommanComplaintHelper extends BaseHelper
             [
                 "type" => SmartConst::VALID_REQUIRED,
                 "msg" => "Please Specify the Complaint's Administrator"
+            ]
+        ],
+        "complaint_supervisor" => [
+            [
+                "type" => SmartConst::VALID_REQUIRED,
+                "msg" => "Please Specify the Complaint's Supervisor"
             ]
         ],
 
@@ -144,8 +151,10 @@ class CommanComplaintHelper extends BaseHelper
      */
     public function getAllDataComplaintTypes($sql = "", $data_in = [], $group_by = "", $count = false)
     {
-        $from = Table::COMPLAINTTYPES. " t1 LEFT JOIN  ".Table::ROLES." t2 ON t1.complaint_admin=t2.ID" ;
-        $select = ["t1.*,t2.role_name AS complaint_admin"];
+        $from = Table::COMPLAINTTYPES. " t1
+        LEFT JOIN  ".Table::ROLES." t2 ON t1.complaint_admin=t2.ID
+        LEFT JOIN  ".Table::ROLES." t3 ON t1.complaint_supervisor=t3.ID" ;
+        $select = ["t1.*,t2.role_name AS complaint_admin,t3.role_name AS complaint_supervisor"];
         $order_by = "created_time DESC";
         $data =  $this->getAll($select, $from, $sql, $group_by, $order_by, $data_in, false, [], $count);
         return $data;
@@ -205,6 +214,18 @@ class CommanComplaintHelper extends BaseHelper
         $select = ["ID"];
         $sql = "complaint_admin=:complaint_admin";
         $data_in = ["complaint_admin" => $type];
+        $group_by = "";
+        $order_by = "";
+        $data_out = $this->getAll($select, $from, $sql, $group_by, $order_by, $data_in, true, []);
+        return $data_out;
+    }
+
+    public function checkSupervisorRoleExist($type)
+    {
+        $from = Table::COMPLAINTTYPES;
+        $select = ["ID"];
+        $sql = "complaint_supervisor=:complaint_supervisor";
+        $data_in = ["complaint_supervisor" => $type];
         $group_by = "";
         $order_by = "";
         $data_out = $this->getAll($select, $from, $sql, $group_by, $order_by, $data_in, true, []);
@@ -308,13 +329,29 @@ class CommanComplaintHelper extends BaseHelper
 
     public function getDashBoard($roles){
 
-        $from = Table::COMPLAINTS . " t1 
+        $from = Table::COMPLAINTS . " t1
         INNER JOIN " . Table::COMPLAINTTYPES . " t2 ON t1.type = t2.ID";
         $sql = "t2.complaint_admin IN (".implode(",",$roles).") AND t1.status=10";
         $select = ["COUNT(t1.ID) as total_count,t2.complaint_type as ctype,t2.ID as tlink"];
         $order_by = "";
         $group_by = "t1.type";
         return $this->getAll($select, $from, $sql, $group_by, $order_by, [], false, [], false);
+    }
+
+    // Complaints forwarded (status=30) to the logged-in user as the
+    // per-complaint supervisor - mirrors getDashBoard() but scoped by
+    // t1.supervisor (a specific user) rather than the type's
+    // complaint_admin role, matching supervisorGetAll()'s filter.
+    public function getSupervisorDashBoard($user_id){
+
+        $from = Table::COMPLAINTS . " t1
+        INNER JOIN " . Table::COMPLAINTTYPES . " t2 ON t1.type = t2.ID";
+        $sql = "t1.supervisor=:supervisor_id AND t1.status=30";
+        $data_in = ["supervisor_id" => $user_id];
+        $select = ["COUNT(t1.ID) as total_count,t2.complaint_type as ctype,t2.ID as tlink"];
+        $order_by = "";
+        $group_by = "t1.type";
+        return $this->getAll($select, $from, $sql, $group_by, $order_by, $data_in, false, [], false);
     }
 
 

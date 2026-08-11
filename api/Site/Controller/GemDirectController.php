@@ -188,6 +188,32 @@ class GemDirectController extends BaseController
                 $data_in = ["hos_self_id" => $logged_id];
                 break;
 
+            // HOD/AD/GD mirror the 'hos' filter exactly, just scoped to the
+            // org-head type the logged-in user holds (DH/AD/GD instead of SH).
+            case 'hod':
+                $org_ids = $this->_org_helper->getSubOrdIds($logged_id, "DH");
+                $org_ids_sql = empty($org_ids) ? "-1" : implode(",", array_map('intval', $org_ids));
+                $sql = "t1.status IN (" . implode(",", $status) . ")
+                    AND (t2.sd_org_id IN (" . $org_ids_sql . ") OR t1.sd_mt_userdb_id = :hod_self_id)";
+                $data_in = ["hod_self_id" => $logged_id];
+                break;
+
+            case 'ad':
+                $org_ids = $this->_org_helper->getSubOrdIds($logged_id, "AD");
+                $org_ids_sql = empty($org_ids) ? "-1" : implode(",", array_map('intval', $org_ids));
+                $sql = "t1.status IN (" . implode(",", $status) . ")
+                    AND (t2.sd_org_id IN (" . $org_ids_sql . ") OR t1.sd_mt_userdb_id = :ad_self_id)";
+                $data_in = ["ad_self_id" => $logged_id];
+                break;
+
+            case 'gd':
+                $org_ids = $this->_org_helper->getSubOrdIds($logged_id, "GD");
+                $org_ids_sql = empty($org_ids) ? "-1" : implode(",", array_map('intval', $org_ids));
+                $sql = "t1.status IN (" . implode(",", $status) . ")
+                    AND (t2.sd_org_id IN (" . $org_ids_sql . ") OR t1.sd_mt_userdb_id = :gd_self_id)";
+                $data_in = ["gd_self_id" => $logged_id];
+                break;
+
             case 'financial_approval':
                 $sql = "t1.status IN (" . implode(",", $status) . ")";
                 break;
@@ -229,8 +255,13 @@ class GemDirectController extends BaseController
             \CustomErrorHandler::triggerInvalid("Record not found");
         }
 
-        // Get tracker (pass created_by also)
-        $statusTracker = $this->_gem_direct_helper->getStatusTracker($data->status, $data->created_by);
+        // Get tracker (pass created_by + total_cost so it can hide the
+        // HOD/AD/GD steps this proposal's amount will never reach, and
+        // vetter_user_id so it can tell the Chairman's two decision points
+        // apart — see buildChairmanVetterGroups())
+        $statusTracker = $this->_gem_direct_helper->getStatusTracker(
+            $data->status, $data->created_by, $this->getTotalCost($data), $data->vetter_user_id ?? null
+        );
 
         // Add only status_list to the main data
         $data->status_list = $statusTracker['status_list'];
@@ -262,6 +293,32 @@ class GemDirectController extends BaseController
         $this->response($out);
     }
 
+    // Reads a proposal's total_cost, falling back to cost*quantity when the
+    // stored column is empty (mirrors the same fallback in
+    // updateApprovalChairman()).
+    private function getTotalCost($row)
+    {
+        $total_cost = floatval($row->total_cost ?? 0);
+        if ($total_cost <= 0) {
+            $total_cost = floatval($row->cost ?? 0) * floatval($row->quantity ?? 0);
+        }
+        return $total_cost;
+    }
+
+    // =========================================================
+    // Amount-tiered escalation chain (Delegation of Powers):
+    //   HOS   approve -> <= gem_direct_hos_max (50,000 default)  => 15 (Chairman)
+    //                     else                                   => 41 (waiting HOD)
+    //   HOD   approve -> <= gem_direct_hod_max (100,000 default) => 15 (Chairman)
+    //                     else                                   => 44 (waiting AD)
+    //   AD    approve -> <= gem_direct_ad_max (250,000 default)  => 15 (Chairman)
+    //                     else                                   => 47 (waiting GD)
+    //   GD    approve -> always                                  => 15 (Chairman)
+    // A proposal always starts at HOS; it only escalates as far up the
+    // chain as its amount requires, then moves on to the IIBCC Chairman
+    // exactly like it always has (status 15 is unchanged).
+    // =========================================================
+
     public function updateApprovalHos()
     {
         $id = isset($this->post["id"]) ? intval($this->post["id"]) : 0;
@@ -272,11 +329,13 @@ class GemDirectController extends BaseController
         $action = isset($this->post["status"]) ? $this->post["status"] : "";
         $remarks = isset($this->post["remarks"]) ? $this->post["remarks"] : "";
 
-        // approve -> waiting Chairman (15)
+        // approve -> waiting Chairman (15) or escalate to HOD (41)
         // reject  -> close file (14)
         // rework  -> back to user for restart (40)
         if ($action === "approve") {
-            $status = 15;
+            $row = $this->_gem_direct_helper->getOneData($id);
+            $hos_max = floatval(SmartSiteSettings::getSetting("gem_direct_hos_max", 50000));
+            $status = ($this->getTotalCost($row) <= $hos_max) ? 15 : 41;
         } else if ($action === "reject") {
             $status = 14;
         } else if ($action === "rework") {
@@ -296,8 +355,140 @@ class GemDirectController extends BaseController
 
         $logMap = [
             15 => "APPROVED GEM DIRECT BY HOS",
+            41 => "APPROVED GEM DIRECT BY HOS - ESCALATED TO HOD",
             14 => "REJECTED GEM DIRECT BY HOS",
             40 => "SENT GEM DIRECT FOR REWORK BY HOS",
+        ];
+        $this->addLog($logMap[$status], $remarks, SmartAuthHelper::getLoggedInUserName());
+
+        $this->response($id);
+    }
+
+    public function updateApprovalHod()
+    {
+        $id = isset($this->post["id"]) ? intval($this->post["id"]) : 0;
+        if ($id < 1) {
+            \CustomErrorHandler::triggerInvalid("Invalid ID");
+        }
+
+        $action = isset($this->post["status"]) ? $this->post["status"] : "";
+        $remarks = isset($this->post["remarks"]) ? $this->post["remarks"] : "";
+
+        // approve -> waiting Chairman (15) or escalate to AD (44)
+        // reject  -> close file (42)
+        // rework  -> back to user for restart (43)
+        if ($action === "approve") {
+            $row = $this->_gem_direct_helper->getOneData($id);
+            $hod_max = floatval(SmartSiteSettings::getSetting("gem_direct_hod_max", 100000));
+            $status = ($this->getTotalCost($row) <= $hod_max) ? 15 : 44;
+        } else if ($action === "reject") {
+            $status = 42;
+        } else if ($action === "rework") {
+            $status = 43;
+        } else {
+            \CustomErrorHandler::triggerInvalid("Invalid Action");
+            return;
+        }
+
+        $columns = ["status", "hod_id", "hod_remarks", "hod_time"];
+        $dt = [
+            "status" => $status,
+            "hod_remarks" => $remarks
+        ];
+
+        $id = $this->_gem_direct_helper->update($columns, $dt, $id);
+
+        $logMap = [
+            15 => "APPROVED GEM DIRECT BY HOD",
+            44 => "APPROVED GEM DIRECT BY HOD - ESCALATED TO AD",
+            42 => "REJECTED GEM DIRECT BY HOD",
+            43 => "SENT GEM DIRECT FOR REWORK BY HOD",
+        ];
+        $this->addLog($logMap[$status], $remarks, SmartAuthHelper::getLoggedInUserName());
+
+        $this->response($id);
+    }
+
+    public function updateApprovalAd()
+    {
+        $id = isset($this->post["id"]) ? intval($this->post["id"]) : 0;
+        if ($id < 1) {
+            \CustomErrorHandler::triggerInvalid("Invalid ID");
+        }
+
+        $action = isset($this->post["status"]) ? $this->post["status"] : "";
+        $remarks = isset($this->post["remarks"]) ? $this->post["remarks"] : "";
+
+        // approve -> waiting Chairman (15) or escalate to GD (47)
+        // reject  -> close file (45)
+        // rework  -> back to user for restart (46)
+        if ($action === "approve") {
+            $row = $this->_gem_direct_helper->getOneData($id);
+            $ad_max = floatval(SmartSiteSettings::getSetting("gem_direct_ad_max", 250000));
+            $status = ($this->getTotalCost($row) <= $ad_max) ? 15 : 47;
+        } else if ($action === "reject") {
+            $status = 45;
+        } else if ($action === "rework") {
+            $status = 46;
+        } else {
+            \CustomErrorHandler::triggerInvalid("Invalid Action");
+            return;
+        }
+
+        $columns = ["status", "ad_id", "ad_remarks", "ad_time"];
+        $dt = [
+            "status" => $status,
+            "ad_remarks" => $remarks
+        ];
+
+        $id = $this->_gem_direct_helper->update($columns, $dt, $id);
+
+        $logMap = [
+            15 => "APPROVED GEM DIRECT BY AD",
+            47 => "APPROVED GEM DIRECT BY AD - ESCALATED TO GD",
+            45 => "REJECTED GEM DIRECT BY AD",
+            46 => "SENT GEM DIRECT FOR REWORK BY AD",
+        ];
+        $this->addLog($logMap[$status], $remarks, SmartAuthHelper::getLoggedInUserName());
+
+        $this->response($id);
+    }
+
+    public function updateApprovalGd()
+    {
+        $id = isset($this->post["id"]) ? intval($this->post["id"]) : 0;
+        if ($id < 1) {
+            \CustomErrorHandler::triggerInvalid("Invalid ID");
+        }
+
+        $action = isset($this->post["status"]) ? $this->post["status"] : "";
+        $remarks = isset($this->post["remarks"]) ? $this->post["remarks"] : "";
+
+        // GD is the top tier — approve always moves on to Chairman (15).
+        // reject -> close file (48)   rework -> back to user (49)
+        if ($action === "approve") {
+            $status = 15;
+        } else if ($action === "reject") {
+            $status = 48;
+        } else if ($action === "rework") {
+            $status = 49;
+        } else {
+            \CustomErrorHandler::triggerInvalid("Invalid Action");
+            return;
+        }
+
+        $columns = ["status", "gd_id", "gd_remarks", "gd_time"];
+        $dt = [
+            "status" => $status,
+            "gd_remarks" => $remarks
+        ];
+
+        $id = $this->_gem_direct_helper->update($columns, $dt, $id);
+
+        $logMap = [
+            15 => "APPROVED GEM DIRECT BY GD",
+            48 => "REJECTED GEM DIRECT BY GD",
+            49 => "SENT GEM DIRECT FOR REWORK BY GD",
         ];
         $this->addLog($logMap[$status], $remarks, SmartAuthHelper::getLoggedInUserName());
 
@@ -397,9 +588,10 @@ class GemDirectController extends BaseController
 
         // Status handling — three signals decide whether to reset to 10:
         //  1. Current status must be a "back at user" state (10 = initial,
-        //     40/29/24 = HOS/Chairman/Vetter rework). Anything past that
-        //     point is mid-workflow (15/16/17/19/20) and editing it should
-        //     never silently pull it back to the start.
+        //     40/29/24 = HOS/Chairman/Vetter rework, 43/46/49 = HOD/AD/GD
+        //     rework). Anything past that point is mid-workflow (15/16/
+        //     17/19/20/41/42/44/45/47/48) and editing it should never
+        //     silently pull it back to the start.
         //  2. Caller must be the proposal owner (sd_mt_userdb_id match).
         //  3. Caller must NOT have ADMIN role (admin edits are in-place
         //     data fixes; workflow state is theirs to leave alone).
@@ -408,7 +600,7 @@ class GemDirectController extends BaseController
         $currentStatus = isset($existing->status) ? intval($existing->status) : 0;
         $ownerId = isset($existing->sd_mt_userdb_id) ? intval($existing->sd_mt_userdb_id) : 0;
         $callerId = intval(SmartAuthHelper::getLoggedInId());
-        $userActionableStates = [10, 24, 29, 40];
+        $userActionableStates = [10, 24, 29, 40, 43, 46, 49];
         $isOwner = ($ownerId > 0 && $ownerId === $callerId);
         $isAdmin = SmartAuthHelper::checkRole(["ADMIN"]);
         $isRework = in_array($currentStatus, $userActionableStates, true);
@@ -901,12 +1093,15 @@ class GemDirectController extends BaseController
     public function pendingCount()
     {
         $user_id = SmartAuthHelper::getLoggedInId();
-        // HOS dashboard count is scoped to the orgs where this user is a
-        // Section Head (plus their own self-raised proposals); mirrors the
-        // filter applied in getAll() case 'hos' so the badge matches the
-        // list the user will actually see.
+        // Each dashboard count is scoped to the orgs where this user holds
+        // that org-head role (plus their own self-raised proposals); mirrors
+        // the filters applied in getAll() cases 'hos'/'hod'/'ad'/'gd' so the
+        // badges match the lists the user will actually see.
         $hos_org_ids = $this->_org_helper->getSubOrdIds($user_id, "SH");
-        $counts = $this->_gem_direct_helper->getPendingCounts($user_id, $hos_org_ids);
+        $hod_org_ids = $this->_org_helper->getSubOrdIds($user_id, "DH");
+        $ad_org_ids = $this->_org_helper->getSubOrdIds($user_id, "AD");
+        $gd_org_ids = $this->_org_helper->getSubOrdIds($user_id, "GD");
+        $counts = $this->_gem_direct_helper->getPendingCounts($user_id, $hos_org_ids, $hod_org_ids, $ad_org_ids, $gd_org_ids);
         $this->response($counts);
     }
 

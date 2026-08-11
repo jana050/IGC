@@ -78,10 +78,48 @@ class WorkshopController extends BaseController
         $columns = ["status","admin_remarks"];
         $columns[] = "last_modified_by";
         $columns[] = "last_modified_time";
+        // Admin picks a Supervisor when marking a request "Under Process"
+        // (status 19) - optional otherwise, so just always include it.
+        $columns[] = "supervisor";
         // insert and get id
         $id = $this->_workshop_helper->update($columns, $this->post, $id);
         // add log
         $this->addLog("UPDATED A WORKSHOP DOC", "", SmartAuthHelper::getLoggedInUserName());
+        $this->response($id);
+    }
+
+    // =========================================================
+    // Supervisor stage. Workshop has no per-request "type" (unlike Custom
+    // Requisition/Complaints), so the Supervisor pool comes from the
+    // fixed 'workshop_supervisor' site-setting role instead of a per-type
+    // role - see WorkshopHelper::getUsersByRoleKey().
+    // =========================================================
+    public function supervisorUserSelect()
+    {
+        $this->response($this->_workshop_helper->getUsersByRoleKey('workshop_supervisor'));
+    }
+
+    public function supervisorGetAll()
+    {
+        $supervisor_id = SmartAuthHelper::getLoggedInId();
+        $sql = "t1.supervisor = :supervisor_id AND t1.status = 19";
+        $data_in = ["supervisor_id" => $supervisor_id];
+        $data = $this->_workshop_helper->getAllData($sql, $data_in);
+        $this->response($data);
+    }
+
+    public function updateSupervisor()
+    {
+        $id = isset($this->post["id"]) ? intval($this->post["id"]) : 0;
+        if ($id < 1) {
+            \CustomErrorHandler::triggerInvalid("Invalid ID");
+        }
+        $columns = ["status"];
+        $this->_workshop_helper->validate(WorkshopHelper::validations, $columns, $this->post);
+        $columns[] = "supervisor_time";
+        $columns[] = "supervisor_description";
+        $id = $this->_workshop_helper->update($columns, $this->post, $id);
+        $this->addLog("UPDATED A WORKSHOP DOC BY SUPERVISOR", "", SmartAuthHelper::getLoggedInUserName());
         $this->response($id);
     }
 

@@ -51,7 +51,7 @@ class DocumentController extends BaseController{
         $posted_data = Data::post_data($post_index,"ARRAY");
         //var_dump($posted_data);
         if(is_array($posted_data) && sizeof($posted_data) > 0){
-            // now insert this data 
+            // now insert this data
             $this->_doc_perm_helper->insertPermission($p_type,$type,$doc_id,$posted_data);
         }
     }

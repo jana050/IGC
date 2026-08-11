@@ -28,7 +28,7 @@ class CommanComplaintController extends BaseController
 
      public function insertComplaintTypes()
      {
-         $columns = ["complaint_type", "complaint_admin"];
+         $columns = ["complaint_type", "complaint_admin", "complaint_supervisor"];
          // do validations
          $this->_comman_complaint_helper->validate(CommanComplaintHelper::validations, $columns, $this->post);
          // add extra columns
@@ -51,7 +51,7 @@ class CommanComplaintController extends BaseController
          if ($id < 1) {
              \CustomErrorHandler::triggerInvalid("Invalid ID");
          }
-         $columns = ["complaint_type", "complaint_admin"];
+         $columns = ["complaint_type", "complaint_admin", "complaint_supervisor"];
          // do validations
          $this->_comman_complaint_helper->validate(CommanComplaintHelper::validations, $columns, $this->post);
          // add extra columns
@@ -158,6 +158,8 @@ class CommanComplaintController extends BaseController
         $columns[] = "last_modified_by";
         $columns[] = "last_modified_time";
         $columns[] = "supervisor";
+        $columns[] = "date_of_closure";
+        $columns[] = "supervisor_description";
         // insert and get id
         $id = $this->_comman_complaint_helper->update($columns, $this->post, $id);
         // add log

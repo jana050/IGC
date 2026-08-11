@@ -353,6 +353,23 @@ class UserController extends BaseController
         $data = $this->_user_helper->getUsersFromRoleIndex( $role_index_value);
         $this->response($data);
     }
-    
-    
+
+    /**
+     * Users holding a given role id directly - used to populate the
+     * Supervisor dropdown scoped to whichever role is assigned as a
+     * complaint type's complaint_supervisor (or any other caller that
+     * already has a concrete role id, as opposed to getAllRoleIndex()
+     * which resolves one indirectly from a site-settings key).
+     */
+    public function getUsersByRoleId()
+    {
+        $role_id = isset($this->post["role_id"]) ? intval($this->post["role_id"]) : 0;
+        if ($role_id < 1) {
+            \CustomErrorHandler::triggerInvalid("Invalid Role");
+        }
+        $data = $this->_user_helper->getUsersFromRoleIndex($role_id);
+        $this->response($data);
+    }
+
+
 }

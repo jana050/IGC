@@ -1,6 +1,0 @@
-node_modules
-vendor
-tests
-.env
-.DS_Store
-.github
